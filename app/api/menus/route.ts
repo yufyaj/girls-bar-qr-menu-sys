@@ -127,6 +127,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 店舗情報を取得（スマレジ連携の確認）
+    const { data: store, error: storeError } = await supabase
+      .from('stores')
+      .select('enable_smaregi_integration')
+      .eq('store_id', storeId)
+      .single();
+
+    if (storeError) {
+      console.error('店舗情報取得エラー:', storeError);
+      return NextResponse.json(
+        { error: '店舗情報の取得に失敗しました' },
+        { status: 500 }
+      );
+    }
+
+    // スマレジ連携が有効の場合はエラー
+    if (store.enable_smaregi_integration) {
+      return NextResponse.json(
+        { error: 'スマレジ連携が有効になっているため、メニューの追加はできません。スマレジで商品を登録した後、メニュー管理画面で「スマレジと同期」ボタンをクリックしてください。' },
+        { status: 403 }
+      );
+    }
+
     const data = await request.json();
 
     // バリデーション
