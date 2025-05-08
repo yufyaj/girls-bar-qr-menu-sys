@@ -1,0 +1,40 @@
+# .cursorrules ─ QRオーダー & 会計連携システム
+
+## 01 – Authoritative Sources
+- **Always cite the _latest_ Supabase docs registered in Cursor as “Supabase” and the newest official Next-js docs stored in Cursor.**  
+- If an API isn’t covered, file a “doc-update” task instead of guessing.
+
+## 02 – Supabase Access
+- **All Supabase calls must flow through backend Route Handlers or Server Actions.** Front-end direct calls are forbidden; flag a PR if detected.
+
+## 03 – Learning from Feedback
+- Any reviewer comment that begins with `RULE:` becomes a new rule appended to this file automatically.
+
+## 04 – Component Factorisation
+- Extract shared UI/logic into `/components/ui/**` or `/features/**` per Atomic + Feature-Slice.
+
+## 05 – Design Patterns
+- Follow the Presentation → State → Domain → Data → Infrastructure layering.  
+- Warn if a new PR skips layers.
+
+## 06 – Document & Progress Sync
+- Changes that alter behaviour/public contracts **must update 要件定義書 & 詳細設計書** in the same PR.  
+- New features not in the docs require prior reviewer approval.  
+- Update the **進捗管理表** check-list whenever a task completes.
+
+## 07 – Test-First
+- Every production file added/changed must ship with matching tests; block PRs that lower coverage.
+
+## 08 – Windows CLI Compatibility  ← NEW
+- **All code snippets and setup commands must run on Windows (CMD or PowerShell).**  
+  - Use `copy` or `xcopy` instead of `cp` :contentReference[oaicite:0]{index=0}.  
+  - Use `Remove-Item` instead of `rm` :contentReference[oaicite:1]{index=1}.  
+  - Show `npm install` and `node app.js` exactly as they appear in Windows docs :contentReference[oaicite:2]{index=2}.  
+  - Installation/setup links should reference official Windows guides (Git for Windows, Node installer, etc.) :contentReference[oaicite:3]{index=3}.  
+- If a cross-platform shell command _must_ be included, also supply the Windows variant or a PowerShell one-liner.
+
+## 09 – Lint & Style
+- Enforce ESLint, Prettier; CI fails on violations.
+
+## 10 – Communication
+- If unclear or conflicting, ask for clarification instead of assuming.
