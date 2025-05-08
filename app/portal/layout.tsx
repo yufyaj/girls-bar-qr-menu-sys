@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
+import LayoutWrapper from './components/layout-wrapper';
 
 // ナビゲーションリンク
 interface NavLink {
@@ -97,54 +97,13 @@ export default async function PortalLayout({
   const store = await storeResponse.json();
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex">
-              <div className="flex-shrink-0 flex items-center">
-                <span className="text-lg font-bold">{store?.name || '店舗'}</span>
-              </div>
-              <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                {navLinks
-                  .filter(link => link.roles.includes(userRole))
-                  .map(link => (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-                    >
-                      {link.label}
-                    </Link>
-                  ))}
-              </div>
-            </div>
-            <div className="hidden sm:ml-6 sm:flex sm:items-center">
-              <div className="ml-3 relative">
-                <div className="flex items-center">
-                  <span className="text-sm text-gray-500 mr-2">
-                    {user.email}
-                  </span>
-                  <form action="/api/logout" method="POST">
-                    <button
-                      type="submit"
-                      className="bg-white p-1 rounded-full text-gray-400 hover:text-gray-500"
-                    >
-                      ログアウト
-                    </button>
-                  </form>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      <main className="py-10">
-        <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-          {children}
-        </div>
-      </main>
-    </div>
+    <LayoutWrapper
+      navLinks={navLinks}
+      userRole={userRole}
+      storeName={store?.name || '店舗'}
+      userEmail={user.email}
+    >
+      {children}
+    </LayoutWrapper>
   );
 }
