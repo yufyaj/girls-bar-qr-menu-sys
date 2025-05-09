@@ -3,10 +3,10 @@ import { createServerSupabaseClient } from '@/lib/supabase';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { session_id: string } }
+  { params }: { params: Promise<{ session_id: string }> }
 ) {
   try {
-    const { session_id } = params;
+    const { session_id } = await params;
 
     // データベース操作用クライアント
     const supabase = await createServerSupabaseClient();
@@ -43,6 +43,82 @@ export async function GET(
 
     if (chargeError) {
       console.error('テーブル料金計算エラー:', chargeError);
+
+      // エラーが発生した場合は、代替の計算方法を使用
+      // 席移動料金を取得
+      let moveChargeAmount = 0;
+      try {
+        const { data: moveCharges, error: moveChargeError } = await supabase
+          .from('session_seat_events')
+          .select('price_snapshot')
+          .eq('session_id', session_id)
+          .eq('is_table_move_charge', true);
+
+        if (!moveChargeError && moveCharges && moveCharges.length > 0) {
+          for (const charge of moveCharges) {
+            moveChargeAmount += charge.price_snapshot;
+          }
+        }
+      } catch (error) {
+        console.error('席移動料金取得例外:', error);
+      }
+
+      // 最後のイベントの情報を取得（席移動料金イベントを除く）
+      try {
+        const { data: lastEvent, error: lastEventError } = await supabase
+          .from('session_seat_events')
+          .select('seat_type_id, price_snapshot, changed_at')
+          .eq('session_id', session_id)
+          .eq('is_table_move_charge', false)
+          .order('changed_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (!lastEventError && lastEvent) {
+          // 席種の時間単位を取得
+          const { data: seatType, error: seatTypeError } = await supabase
+            .from('seat_types')
+            .select('time_unit_minutes')
+            .eq('seat_type_id', lastEvent.seat_type_id)
+            .single();
+
+          const timeUnitMinutes = seatType && seatType.time_unit_minutes > 0
+            ? seatType.time_unit_minutes
+            : 30;
+
+          // 最後のイベントからの経過時間を計算（分単位）
+          const now = session.charge_paused_at
+            ? new Date(session.charge_paused_at)
+            : new Date();
+          const lastEventTime = new Date(lastEvent.changed_at);
+          const elapsedMs = now.getTime() - lastEventTime.getTime();
+          const elapsedMinutes = elapsedMs / (1000 * 60);
+
+          // 時間単位で切り上げ
+          const roundedMinutes = Math.ceil(elapsedMinutes / timeUnitMinutes) * timeUnitMinutes;
+
+          // 時間単位の数を計算
+          const timeUnits = roundedMinutes / timeUnitMinutes;
+
+          // 現在のテーブルでの料金を計算
+          const currentTableCharge = timeUnits * lastEvent.price_snapshot;
+
+          // 合計料金を計算
+          const totalCharge = moveChargeAmount + currentTableCharge;
+
+          // 計算結果を返す
+          return NextResponse.json({
+            charge_amount: totalCharge,
+            table_charge: currentTableCharge > 0 ? currentTableCharge : 0,
+            move_charge: moveChargeAmount,
+            calculated_by: 'fallback'
+          });
+        }
+      } catch (error) {
+        console.error('代替計算エラー:', error);
+      }
+
+      // 代替計算も失敗した場合はエラーを返す
       return NextResponse.json(
         { error: 'テーブル料金の計算に失敗しました' },
         { status: 500 }
