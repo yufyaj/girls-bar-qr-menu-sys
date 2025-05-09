@@ -7,5 +7,8 @@ export async function middleware(request: NextRequest) {
 
 // ミドルウェアを適用するパスを指定
 export const config = {
-  matcher: ['/portal/:path*'],
+  matcher: [
+    // 認証が必要なパスのみを指定
+    '/portal/:path*',
+  ],
 };

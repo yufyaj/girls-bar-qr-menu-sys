@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -26,8 +26,6 @@ export const createServerSupabaseClient = async () => {
 export const createServerComponentClient = async () => {
   const cookieStore = await cookies();
 
-  const allCookies = cookieStore.getAll();
-
   return createServerClient(
     SUPABASE_URL,
     SUPABASE_ANON_KEY,
@@ -39,7 +37,6 @@ export const createServerComponentClient = async () => {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
-
               cookieStore.set(name, value, options);
             });
           } catch (error) {
@@ -53,72 +50,34 @@ export const createServerComponentClient = async () => {
   );
 };
 
-// ミドルウェア用のクライアント
-export const createMiddlewareClient = (request: NextRequest, response: NextResponse) => {
-  return createServerClient(
-    SUPABASE_URL,
-    SUPABASE_ANON_KEY,
+// ミドルウェアでセッションを更新する関数
+export const updateSession = async (request: NextRequest) => {
+  // 空のレスポンスを先に用意
+  const response = NextResponse.next({
+    request: { headers: request.headers },
+  });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
+        // 1. 受信した Cookie はそのまま返す
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set({
-              name,
-              value,
-              ...options,
-            })
+        // 2. 新しい Cookie は「レスポンス」側だけに書き込む（ここがポイント）
+        setAll(cookies) {
+          cookies.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options),
           );
         },
       },
-    }
-  );
-};
-
-// ミドルウェアでセッションを更新する関数
-export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
     },
-  });
+  );
 
-
-
-  const supabase = createMiddlewareClient(request, response);
-
-  // IMPORTANT: getUser()を呼び出す前にロジックを書かないこと
-  // セッションの更新
-  const { data: { user }, error } = await supabase.auth.getUser();
-
-  if (error) {
-    console.error('Middleware: 認証エラー:', error);
-  }
-
-  // ポータルへのアクセスは認証が必要
-  if (request.nextUrl.pathname.startsWith('/portal')) {
-    if (!user) {
-      // ログインページにリダイレクト
-      return NextResponse.redirect(new URL('/', request.url));
-    }
-
-    // 店舗IDの取得
-    const storeId = request.cookies.get('store-id')?.value;
-
-    if (!storeId) {
-      // 店舗IDがない場合はログアウト
-      await supabase.auth.signOut();
-      return NextResponse.redirect(new URL('/', request.url));
-    }
-
-
-  }
+  // 必ず getUser() でセッションを再検証（トークン自動リフレッシュ）
+  await supabase.auth.getUser();
 
   return response;
-}
+};

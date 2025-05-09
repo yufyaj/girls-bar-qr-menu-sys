@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase';
-import { cookies } from 'next/headers';
 
 // 共通の設定
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -10,9 +9,14 @@ export async function POST(request: NextRequest) {
     const { email, password, storeCode } = await request.json();
 
     if (!email || !password || !storeCode) {
-      return NextResponse.json(
-        { error: 'メールアドレス、パスワード、店舗コードは必須です' },
-        { status: 400 }
+      return new NextResponse(
+        JSON.stringify({ error: 'メールアドレス、パスワード、店舗コードは必須です' }),
+        {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
       );
     }
 
@@ -27,9 +31,14 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (storeError || !store) {
-      return NextResponse.json(
-        { error: '店舗が見つかりません' },
-        { status: 404 }
+      return new NextResponse(
+        JSON.stringify({ error: '店舗が見つかりません' }),
+        {
+          status: 404,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
       );
     }
 
@@ -40,48 +49,64 @@ export async function POST(request: NextRequest) {
     });
 
     if (authError) {
-      return NextResponse.json(
-        { error: 'ログインに失敗しました。メールアドレスとパスワードを確認してください' },
-        { status: 401 }
+      return new NextResponse(
+        JSON.stringify({ error: 'ログインに失敗しました。メールアドレスとパスワードを確認してください' }),
+        {
+          status: 401,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
       );
     }
 
-    // Cookieを設定
-    const cookieStore = await cookies();
+    // 新しいレスポンスオブジェクトを作成
+    const response = new NextResponse(
+      JSON.stringify({
+        success: true,
+        store: {
+          id: store.store_id,
+          name: store.name,
+        },
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
 
     // 店舗IDをCookieに設定
-    cookieStore.set('store-id', store.store_id, {
-      path: '/',
-      maxAge: 60 * 60 * 24 * 30, // 30日間
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-    });
+    const storeIdCookieValue = store.store_id;
+    response.headers.append(
+      'Set-Cookie',
+      `store-id=${storeIdCookieValue}; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax`
+    );
 
     // Supabaseのセッションクッキーを設定
     const supabaseAuthCookie = `sb-${SUPABASE_URL.split('//')[1].split('.')[0]}-auth-token`;
-    cookieStore.set(supabaseAuthCookie, JSON.stringify(authData.session), {
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 1週間
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-    });
+    const sessionValue = encodeURIComponent(JSON.stringify(authData.session));
+    response.headers.append(
+      'Set-Cookie',
+      `${supabaseAuthCookie}=${sessionValue}; Path=/; Max-Age=${60 * 60 * 24 * 7}; SameSite=Lax`
+    );
 
-    const allCookies = cookieStore.getAll();
+    // デバッグ用：設定したCookieを確認
+    console.log('設定したCookie ヘッダー:');
+    console.log(response.headers.get('Set-Cookie'));
 
-    return NextResponse.json({
-      success: true,
-      store: {
-        id: store.store_id,
-        name: store.name,
-      },
-    });
+    return response;
   } catch (error) {
     console.error('ログインエラー:', error);
-    return NextResponse.json(
-      { error: '予期せぬエラーが発生しました' },
-      { status: 500 }
+    return new NextResponse(
+      JSON.stringify({ error: '予期せぬエラーが発生しました' }),
+      {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
     );
   }
 }
