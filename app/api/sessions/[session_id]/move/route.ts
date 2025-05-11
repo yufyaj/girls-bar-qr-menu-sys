@@ -3,12 +3,17 @@ import { createServerSupabaseClient } from '@/lib/supabase';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { session_id: string } }
+  { params }: { params: Promise<{ session_id: string }> }
 ) {
   try {
-    const { session_id } = params;
+    const { session_id } = await params;
     const data = await request.json();
-    const { target_table_id } = data;
+    const {
+      target_table_id,
+      calculate_only = false,   // 料金計算のみを行うフラグ（デフォルトはfalse）
+      apply_full_charge = true, // 完全経過分の料金を適用するフラグ（デフォルトはtrue）
+      apply_partial_charge = true // 未達成分の料金を適用するフラグ（デフォルトはtrue）
+    } = data;
 
     if (!target_table_id) {
       return NextResponse.json(
@@ -20,7 +25,7 @@ export async function POST(
     // データベース操作用クライアント
     const supabase = await createServerSupabaseClient();
 
-    // 移動元セッション情報を取得
+    // 移動元セッション情報を取得（guest_countも含める）
     const { data: sourceSession, error: sessionError } = await supabase
       .from('sessions')
       .select(`
@@ -32,6 +37,7 @@ export async function POST(
         charge_paused_at,
         selected_cast_id,
         is_new_customer,
+        guest_count,
         tables (
           table_id,
           seat_type_id,
@@ -110,7 +116,12 @@ export async function POST(
     const now = new Date();
 
     // 移動元テーブルでの滞在時間に応じた料金を計算
-    let currentTableCharge = 0;
+    let fullUnitCharge = 0;  // 完全に経過した時間単位分の料金
+    let partialUnitCharge = 0; // 未達成の時間単位分の料金
+    let currentTableCharge = 0; // 合計料金（計算結果表示用）
+    let timeUnitMinutes = 30; // デフォルトの時間単位（分）
+    let seatType = null; // 席種情報（スコープを関数全体に広げる）
+
     if (sourceSession.charge_started_at) {
       // 移動元テーブルでの滞在時間に応じた料金のみを計算
       // 既存の移動料金を含めないようにするため、直接計算する
@@ -134,7 +145,7 @@ export async function POST(
       }
 
       // 席種の時間単位を取得
-      const { data: seatType, error: seatTypeError } = await supabase
+      const { data: seatTypeData, error: seatTypeError } = await supabase
         .from('seat_types')
         .select('time_unit_minutes')
         .eq('seat_type_id', lastEvent.seat_type_id)
@@ -148,29 +159,56 @@ export async function POST(
         );
       }
 
+      // 席種情報を保存
+      seatType = seatTypeData;
+
       // 時間単位（デフォルトは30分）
-      const timeUnitMinutes = seatType.time_unit_minutes > 0 ? seatType.time_unit_minutes : 30;
+      timeUnitMinutes = seatType.time_unit_minutes > 0 ? seatType.time_unit_minutes : 30;
 
       // 最後のイベントからの経過時間を計算（分単位）
       const lastEventTime = new Date(lastEvent.changed_at);
       const elapsedMs = now.getTime() - lastEventTime.getTime();
       const elapsedMinutes = elapsedMs / (1000 * 60);
 
+      // 人数を取得（デフォルトは1人）
+      const guestCount = sourceSession.guest_count || 1;
+
       // 0分時点での移動の場合は特別処理
       if (elapsedMinutes < 1) {
         // 0分時点での移動の場合、最低料金を適用（1単位分）
-        currentTableCharge = lastEvent.price_snapshot;
+        partialUnitCharge = lastEvent.price_snapshot * guestCount;
+        currentTableCharge = partialUnitCharge;
         console.log('0分時点での移動: 最低料金を適用', currentTableCharge);
       } else {
         // 通常の計算（1分以上経過している場合）
-        // 時間単位で切り上げ
-        const roundedMinutes = Math.ceil(elapsedMinutes / timeUnitMinutes) * timeUnitMinutes;
 
-        // 時間単位の数を計算
-        const timeUnits = roundedMinutes / timeUnitMinutes;
+        // 完全に経過した時間単位を計算
+        const fullUnits = Math.floor(elapsedMinutes / timeUnitMinutes);
 
-        // 現在のテーブルでの料金を計算
-        currentTableCharge = timeUnits * lastEvent.price_snapshot;
+        // 完全に経過した時間単位分の料金（人数分）
+        fullUnitCharge = fullUnits * lastEvent.price_snapshot * guestCount;
+
+        // 残りの未達成分の時間（分）
+        const remainingMinutes = elapsedMinutes - (fullUnits * timeUnitMinutes);
+
+        // 未達成分があれば料金を計算（人数分）
+        if (remainingMinutes > 0) {
+          partialUnitCharge = lastEvent.price_snapshot * guestCount;
+        }
+
+        // 合計料金（計算結果表示用）
+        currentTableCharge = fullUnitCharge + partialUnitCharge;
+
+        console.log('席移動料金計算:', {
+          elapsedMinutes,
+          timeUnitMinutes,
+          fullUnits,
+          fullUnitCharge,
+          remainingMinutes,
+          partialUnitCharge,
+          guestCount,
+          currentTableCharge
+        });
       }
     }
 
@@ -180,8 +218,33 @@ export async function POST(
     // 現在時刻から1ミリ秒前の時刻を計算（移動元テーブルの料金記録用）
     const moveChargeTime = new Date(now.getTime() - 1);
 
-    // 移動元テーブルの料金を記録するためのsession_seat_eventを作成（料金が0より大きい場合のみ）
-    if (currentTableCharge > 0) {
+    // 料金計算のみのモードの場合は、計算結果を返して終了
+    if (calculate_only) {
+      return NextResponse.json({
+        message: '料金計算が完了しました',
+        previous_charge: currentTableCharge,
+        full_unit_charge: fullUnitCharge,
+        partial_unit_charge: partialUnitCharge,
+        time_unit_minutes: timeUnitMinutes,
+        guest_count: sourceSession.guest_count || 1
+      });
+    }
+
+    // 適用する料金を計算
+    let appliedCharge = 0;
+
+    // 完全経過分の料金を適用する場合
+    if (fullUnitCharge > 0 && apply_full_charge) {
+      appliedCharge += fullUnitCharge;
+    }
+
+    // 未達成分の料金を適用する場合
+    if (partialUnitCharge > 0 && apply_partial_charge) {
+      appliedCharge += partialUnitCharge;
+    }
+
+    // 移動元テーブルの料金を記録するためのsession_seat_eventを作成（適用する料金が0より大きい場合のみ）
+    if (appliedCharge > 0) {
       try {
         // 特別なsession_seat_eventを作成（移動前の料金を記録）
         // is_table_move_chargeフラグをtrueに設定して移動前の料金を記録
@@ -190,7 +253,7 @@ export async function POST(
           .insert({
             session_id: session_id,
             seat_type_id: sourceTableSeatTypeId, // 移動元の席種ID
-            price_snapshot: currentTableCharge, // 現在のテーブルでの料金のみを記録
+            price_snapshot: appliedCharge, // 適用する料金を記録
             changed_at: moveChargeTime.toISOString(), // 現在時刻より少し前の時刻を設定
             is_table_move_charge: true // 席移動料金フラグをtrueに設定
           });
@@ -259,7 +322,12 @@ export async function POST(
     return NextResponse.json({
       message: '席移動が完了しました',
       session: updatedSession,
-      previous_charge: currentTableCharge
+      previous_charge: currentTableCharge,
+      applied_charge: appliedCharge,
+      full_unit_charge: fullUnitCharge,
+      partial_unit_charge: partialUnitCharge,
+      full_charge_applied: apply_full_charge && fullUnitCharge > 0,
+      partial_charge_applied: apply_partial_charge && partialUnitCharge > 0
     });
   } catch (error) {
     console.error('席移動エラー:', error);
