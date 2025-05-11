@@ -49,6 +49,7 @@ interface SessionData {
   charge_paused_at: string | null;
   selected_cast_id: string | null;
   is_new_customer: boolean | null;
+  guest_count: number | null;
 }
 
 export default async function MenuPage({

@@ -11,14 +11,15 @@ export async function GET(
     // データベース操作用クライアント
     const supabase = await createServerSupabaseClient();
 
-    // セッション情報を取得
+    // セッション情報を取得（人数情報も含める）
     const { data: session, error: sessionError } = await supabase
       .from('sessions')
       .select(`
         session_id,
         store_id,
         charge_started_at,
-        charge_paused_at
+        charge_paused_at,
+        guest_count
       `)
       .eq('session_id', session_id)
       .single();
@@ -100,8 +101,11 @@ export async function GET(
           // 時間単位の数を計算
           const timeUnits = roundedMinutes / timeUnitMinutes;
 
-          // 現在のテーブルでの料金を計算
-          const currentTableCharge = timeUnits * lastEvent.price_snapshot;
+          // 人数を取得（デフォルトは1人）
+          const guestCount = session.guest_count || 1;
+
+          // 現在のテーブルでの料金を計算（人数分）
+          const currentTableCharge = timeUnits * lastEvent.price_snapshot * guestCount;
 
           // 合計料金を計算
           const totalCharge = moveChargeAmount + currentTableCharge;

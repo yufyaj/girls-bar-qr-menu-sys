@@ -81,22 +81,34 @@ export default function CheckoutModal({
       }
 
       // 新しい指名情報がない場合は、旧方式の指名情報を確認
-      const sessionResponse = await fetch(`/api/tables/${tableId}/sessions/${sessionId}`);
-      if (sessionResponse.ok) {
-        const sessionData = await sessionResponse.json();
-        if (sessionData.selected_cast_id) {
-          const castResponse = await fetch(`/api/casts?store_id=${storeId}`);
-          if (castResponse.ok) {
-            const castsData = await castResponse.json();
-            const selectedCast = castsData.find((cast: any) => cast.user_id === sessionData.selected_cast_id);
-            if (selectedCast) {
-              setSelectedCastName(selectedCast.display_name || '');
-              setNominationFee(selectedCast.nomination_fee || 0);
-              console.log('旧方式の指名料:', selectedCast.nomination_fee, '円');
-              return selectedCast.nomination_fee || 0;
+      try {
+        const sessionResponse = await fetch(`/api/tables/${tableId}/sessions/${sessionId}`);
+        if (sessionResponse.ok) {
+          const sessionData = await sessionResponse.json();
+          if (sessionData.selected_cast_id) {
+            try {
+              const castResponse = await fetch(`/api/casts?store_id=${storeId}`);
+              if (castResponse.ok) {
+                const castsData = await castResponse.json();
+                const selectedCast = castsData.find((cast: any) => cast.user_id === sessionData.selected_cast_id);
+                if (selectedCast) {
+                  setSelectedCastName(selectedCast.display_name || '');
+                  setNominationFee(selectedCast.nomination_fee || 0);
+                  console.log('旧方式の指名料:', selectedCast.nomination_fee, '円');
+                  return selectedCast.nomination_fee || 0;
+                }
+              } else {
+                console.error('キャスト情報取得に失敗しました:', await castResponse.text());
+              }
+            } catch (castError) {
+              console.error('キャスト情報取得中にエラーが発生しました:', castError);
             }
           }
+        } else {
+          console.error('指名料取得のためのセッション情報取得に失敗しました:', await sessionResponse.text());
         }
+      } catch (sessionError) {
+        console.error('指名料取得のためのセッション情報取得中にエラーが発生しました:', sessionError);
       }
 
       return 0;
@@ -123,6 +135,28 @@ export default function CheckoutModal({
           storeId = storeData.store_id || '';
         } else {
           console.error('店舗情報取得エラー:', await storeResponse.text());
+        }
+
+        // セッション情報を取得して人数を設定
+        try {
+          const sessionResponse = await fetch(`/api/tables/${tableId}/sessions/${sessionId}`);
+          if (sessionResponse.ok) {
+            const sessionData = await sessionResponse.json();
+            console.log('セッションデータ全体:', sessionData);
+
+            // guest_countが存在する場合は設定（0も有効な値として扱う）
+            if (sessionData.guest_count !== null && sessionData.guest_count !== undefined) {
+              setGuestCount(sessionData.guest_count);
+              console.log('セッション人数:', sessionData.guest_count, '人');
+            } else {
+              console.log('セッション人数が取得できませんでした。デフォルト値の1人を使用します。');
+            }
+          } else {
+            const errorText = await sessionResponse.text();
+            console.error('セッション情報の取得に失敗しました:', errorText || sessionResponse.status);
+          }
+        } catch (error) {
+          console.error('セッション情報の取得中にエラーが発生しました:', error);
         }
 
         // 指名料を取得
@@ -160,7 +194,7 @@ export default function CheckoutModal({
     if (sessionId && isOpen) {
       fetchData();
     }
-  }, [sessionId, isOpen, chargeStartedAt]);
+  }, [sessionId, isOpen, chargeStartedAt, tableId]);
 
   // 経過時間の表示を更新する関数
   const updateElapsedTimeDisplay = () => {
@@ -181,6 +215,9 @@ export default function CheckoutModal({
     setElapsedTime(timeString);
   };
 
+  // 人数情報を保持する状態
+  const [guestCount, setGuestCount] = useState<number>(1);
+
   // クライアント側で料金を計算する関数（APIが失敗した場合のフォールバック）
   const calculateClientSideCharge = () => {
     if (!chargeStartedAt) return 0;
@@ -189,13 +226,14 @@ export default function CheckoutModal({
     const now = new Date();
     const pauseTime = chargePausedAt ? new Date(chargePausedAt) : null;
 
-    // ライブラリ関数を使用して料金を計算
+    // ライブラリ関数を使用して料金を計算（人数分）
     const charge = calculateChargeWithPause(
       startTime,
       now,
       pricePerHalfHour,
       timeUnitMinutes,
-      pauseTime
+      pauseTime,
+      guestCount
     );
 
     // 計算された料金を設定
@@ -209,6 +247,7 @@ export default function CheckoutModal({
       elapsedMinutes: Math.floor((now.getTime() - startTime.getTime()) / (1000 * 60)),
       pricePerHalfHour,
       timeUnitMinutes,
+      guestCount,
       charge
     });
 
@@ -304,11 +343,17 @@ export default function CheckoutModal({
       console.log('最新の料金:', latestChargeAmount);
 
       // 店舗IDを取得して指名料も再取得
-      const storeResponse = await fetch(`/api/sessions/${sessionId}/store-info`);
-      if (storeResponse.ok) {
-        const storeData = await storeResponse.json();
-        const storeId = storeData.store_id || '';
-        await fetchNominationFees(storeId);
+      try {
+        const storeResponse = await fetch(`/api/sessions/${sessionId}/store-info`);
+        if (storeResponse.ok) {
+          const storeData = await storeResponse.json();
+          const storeId = storeData.store_id || '';
+          await fetchNominationFees(storeId);
+        } else {
+          console.error('会計時の店舗情報取得に失敗しました:', await storeResponse.text());
+        }
+      } catch (error) {
+        console.error('会計時の店舗情報取得中にエラーが発生しました:', error);
       }
 
       // 最新の料金を状態に設定（表示を更新）
@@ -351,6 +396,12 @@ export default function CheckoutModal({
       // APIから返された料金を使用して表示を更新
       setChargeAmount(data.charge_amount || chargeAmount);
       setNominationFee(data.nomination_fee || nominationFee);
+
+      // 人数情報が返された場合は更新
+      if (data.guest_count !== undefined) {
+        setGuestCount(data.guest_count);
+        console.log('APIから返された人数:', data.guest_count, '人');
+      }
 
       // 指名情報が返された場合は更新
       if (data.nominations && data.nominations.length > 0) {
@@ -473,6 +524,10 @@ export default function CheckoutModal({
               <span className="font-medium">{pricePerHalfHour.toLocaleString()}円 / {timeUnitMinutes}分</span>
             </div>
           )}
+          <div className="flex justify-between mb-2">
+            <span className="text-gray-600">人数:</span>
+            <span className="font-medium">{guestCount}人</span>
+          </div>
           {chargeStartedAt && pricePerHalfHour > 0 && (
             <>
               <div className="flex justify-between mb-2">
@@ -525,7 +580,7 @@ export default function CheckoutModal({
         </div>
         {pricePerHalfHour > 0 && (
           <div className="flex justify-between mb-2">
-            <span>テーブル料金(税込):</span>
+            <span>テーブル料金(税込・{guestCount}人分):</span>
             <span>{chargeAmount.toLocaleString()}円</span>
           </div>
         )}

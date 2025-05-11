@@ -66,12 +66,14 @@ export function calculateElapsedMinutes(
  * @param elapsedMinutes 経過時間（分）
  * @param pricePerUnit 時間単位あたりの単価（デフォルトは30分単位）
  * @param timeUnitMinutes 時間単位（分）（デフォルトは30分）
+ * @param guestCount 人数（デフォルトは1人）
  * @returns 計算された料金
  */
 export function calculateCharge(
   elapsedMinutes: number,
   pricePerUnit: number,
-  timeUnitMinutes: number = 30
+  timeUnitMinutes: number = 30,
+  guestCount: number = 1
 ): number {
   // 単価が無効な場合は0を返す
   if (!pricePerUnit || pricePerUnit < 0) {
@@ -81,14 +83,17 @@ export function calculateCharge(
   // 時間単位が無効な場合はデフォルトの30分を使用
   const validTimeUnit = timeUnitMinutes > 0 ? timeUnitMinutes : 30;
 
+  // 人数が無効な場合はデフォルトの1人を使用
+  const validGuestCount = guestCount > 0 ? guestCount : 1;
+
   // 時間単位で切り上げ（roundUpToTimeUnit関数を使用）
   const roundedMinutes = roundUpToTimeUnit(elapsedMinutes, validTimeUnit);
 
   // 時間単位の数を計算
   const units = roundedMinutes / validTimeUnit;
 
-  // 料金を計算
-  return units * pricePerUnit;
+  // 料金を計算（人数分）
+  return units * pricePerUnit * validGuestCount;
 }
 
 /**
@@ -98,6 +103,7 @@ export function calculateCharge(
  * @param pricePerUnit 時間単位あたりの単価
  * @param timeUnitMinutes 時間単位（分）
  * @param pauseTime 一時停止時間（オプション）
+ * @param guestCount 人数（デフォルトは1人）
  * @returns 計算された料金
  */
 export function calculateChargeWithPause(
@@ -105,11 +111,12 @@ export function calculateChargeWithPause(
   endTime: Date,
   pricePerUnit: number,
   timeUnitMinutes: number = 30,
-  pauseTime?: Date | null
+  pauseTime?: Date | null,
+  guestCount: number = 1
 ): number {
   // 経過時間を計算（一時停止を考慮）
   const elapsedMinutes = calculateElapsedMinutes(startTime, endTime, pauseTime);
 
-  // 料金を計算
-  return calculateCharge(elapsedMinutes, pricePerUnit, timeUnitMinutes);
+  // 料金を計算（人数分）
+  return calculateCharge(elapsedMinutes, pricePerUnit, timeUnitMinutes, guestCount);
 }

@@ -70,7 +70,8 @@ export async function GET(
         charge_started_at: existingSession.charge_started_at,
         charge_paused_at: existingSession.charge_paused_at,
         selected_cast_id: existingSession.selected_cast_id,
-        is_new_customer: existingSession.is_new_customer
+        is_new_customer: existingSession.is_new_customer,
+        guest_count: existingSession.guest_count
       });
     }
 
@@ -101,7 +102,8 @@ export async function GET(
       charge_started_at: newSession.charge_started_at,
       charge_paused_at: newSession.charge_paused_at,
       selected_cast_id: newSession.selected_cast_id,
-      is_new_customer: newSession.is_new_customer
+      is_new_customer: newSession.is_new_customer,
+      guest_count: newSession.guest_count
     });
   } catch (error) {
     console.error('セッション管理エラー:', error);

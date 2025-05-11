@@ -1,6 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase';
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ table_id: string; session_id: string }> }
+) {
+  try {
+    const { table_id, session_id } = await params;
+
+    // データベース操作用クライアント
+    const supabase = await createServerSupabaseClient();
+
+    // セッションが存在するか確認
+    const { data: session, error: sessionError } = await supabase
+      .from('sessions')
+      .select('*')
+      .eq('session_id', session_id)
+      .eq('table_id', table_id)
+      .single();
+
+    if (sessionError || !session) {
+      return NextResponse.json(
+        { error: 'セッションが見つかりません' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(session);
+  } catch (error) {
+    console.error('セッション取得エラー:', error);
+    return NextResponse.json(
+      { error: '予期せぬエラーが発生しました' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ table_id: string; session_id: string }> }

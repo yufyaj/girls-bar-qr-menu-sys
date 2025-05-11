@@ -23,6 +23,7 @@ export async function POST(
         table_id,
         charge_started_at,
         selected_cast_id,
+        guest_count,
         tables (
           table_id,
           seat_type_id,
@@ -540,7 +541,8 @@ export async function POST(
       tax_amount: taxAmount, // 内税の消費税額
       tax_rate: taxRate,
       subtotal_amount: subtotalAmount, // 税抜き合計金額（内税から逆算）
-      status: 'completed'
+      status: 'completed',
+      guest_count: session.guest_count || 1 // 人数情報を追加（デフォルトは1人）
     };
 
 

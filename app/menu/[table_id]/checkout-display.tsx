@@ -48,13 +48,30 @@ export default function CheckoutDisplay({
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [orderTotalPrice, setOrderTotalPrice] = useState<number>(0);
   const [isLoadingOrders, setIsLoadingOrders] = useState<boolean>(true);
-
+  const [guestCount, setGuestCount] = useState<number>(1);
 
 
   // 注文データと最新の料金を取得
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // セッション情報を取得して人数を設定
+        const sessionResponse = await fetch(`/api/tables/${tableId}/sessions/${sessionId}`);
+        if (sessionResponse.ok) {
+          const sessionData = await sessionResponse.json();
+          console.log('セッションデータ全体:', sessionData);
+
+          // guest_countが存在する場合は設定（0も有効な値として扱う）
+          if (sessionData.guest_count !== null && sessionData.guest_count !== undefined) {
+            setGuestCount(sessionData.guest_count);
+            console.log('セッション人数:', sessionData.guest_count, '人');
+          } else {
+            console.log('セッション人数が取得できませんでした。デフォルト値の1人を使用します。');
+          }
+        } else {
+          console.error('セッション情報の取得に失敗しました:', await sessionResponse.text());
+        }
+
         // 注文データを取得
         setIsLoadingOrders(true);
         const response = await fetch(`/api/sessions/${sessionId}/orders`);
@@ -82,7 +99,7 @@ export default function CheckoutDisplay({
     if (sessionId) {
       fetchData();
     }
-  }, [sessionId, chargeStartedAt]);
+  }, [sessionId, chargeStartedAt, tableId]);
 
   // 経過時間の表示を更新する関数
   const updateElapsedTimeDisplay = () => {
@@ -112,8 +129,8 @@ export default function CheckoutDisplay({
     // 経過時間を分単位で計算
     const elapsedMinutes = calculateElapsedMinutes(startTime, now);
 
-    // ライブラリ関数を使用して料金を計算
-    const charge = calculateCharge(elapsedMinutes, pricePerHalfHour, timeUnitMinutes);
+    // ライブラリ関数を使用して料金を計算（人数分）
+    const charge = calculateCharge(elapsedMinutes, pricePerHalfHour, timeUnitMinutes, guestCount);
 
     // 計算された料金を設定
     setChargeAmount(charge);
@@ -126,6 +143,7 @@ export default function CheckoutDisplay({
       elapsedMinutes,
       pricePerHalfHour,
       timeUnitMinutes,
+      guestCount,
       charge
     });
 
@@ -278,6 +296,10 @@ export default function CheckoutDisplay({
               <span>料金:</span>
               <span>{pricePerHalfHour}円/{timeUnitMinutes}分</span>
             </div>
+            <div className="flex justify-between mb-2">
+              <span>人数:</span>
+              <span>{guestCount}人</span>
+            </div>
             {chargeStartedAt && (
               <>
                 <div className="flex justify-between mb-2">
@@ -329,7 +351,7 @@ export default function CheckoutDisplay({
         </div>
         {pricePerHalfHour > 0 && (
           <div className="flex justify-between mb-2">
-            <span>テーブル料金(税込):</span>
+            <span>テーブル料金(税込・{guestCount}人分):</span>
             <span>{chargeAmount.toLocaleString()}円</span>
           </div>
         )}
