@@ -3,7 +3,6 @@ import { ReactNode } from 'react';
 import CheckoutComplete from './checkout-complete';
 import { CartProvider } from './cart-context';
 import SeatSelection from './seat-selection';
-import ClientSideCustomerTypeSelection from './client-customer-selection';
 import MenuPageWrapper from './menu-page-wrapper';
 
 interface TableData {
@@ -147,17 +146,8 @@ export default async function MenuPage({
               sessionId={session.session_id}
             />
           </main>
-        ) : session.charge_started_at && session.is_new_customer === null && session.selected_cast_id === null ? (
-          // ステップ2: 新規/指名選択
-          <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-            <CustomerTypeSelectionWrapper
-              tableId={table_id}
-              sessionId={session.session_id}
-              storeId={table.store_id}
-            />
-          </main>
         ) : (
-          // ステップ3: メニュー表示 - サイドメニュー用に幅を最大に
+          // ステップ2: メニュー表示 - サイドメニュー用に幅を最大に
           <MenuPageWrapper
             sessionId={session.session_id}
             tableId={table_id}
@@ -179,9 +169,4 @@ export default async function MenuPage({
   );
 }
 
-// クライアントコンポーネントをラップするためのサーバーコンポーネント
-function CustomerTypeSelectionWrapper({ tableId, sessionId, storeId }: { tableId: string, sessionId: string, storeId: string }) {
-  return (
-    <ClientSideCustomerTypeSelection tableId={tableId} sessionId={sessionId} storeId={storeId} />
-  );
-}
+

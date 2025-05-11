@@ -20,7 +20,7 @@ export default function SeatSelection({ tableId, tableName, sessionId }: SeatSel
       setIsLoading(true);
       setError(null);
 
-      // 座席選択時間と人数を記録
+      // 座席選択時間と人数を記録し、自動的に新規客として設定
       const response = await fetch(`/api/tables/${tableId}/sessions/${sessionId}/`, {
         method: 'PATCH',
         headers: {
@@ -29,6 +29,7 @@ export default function SeatSelection({ tableId, tableName, sessionId }: SeatSel
         body: JSON.stringify({
           charge_started_at: new Date().toISOString(),
           guest_count: guestCount,
+          is_new_customer: true, // 自動的に新規客として設定
         }),
       });
 
@@ -37,7 +38,7 @@ export default function SeatSelection({ tableId, tableName, sessionId }: SeatSel
         throw new Error(data.error || '座席選択の処理に失敗しました');
       }
 
-      // 画面を更新して次のステップ（新規/指名選択）に進む
+      // 画面を更新してメニュー表示に進む
       router.refresh();
     } catch (err) {
       console.error('座席選択エラー:', err);
