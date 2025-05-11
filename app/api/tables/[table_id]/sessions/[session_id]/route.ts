@@ -47,6 +47,11 @@ export async function PATCH(
       updateData.is_new_customer = data.is_new_customer;
     }
 
+    // guest_countの更新
+    if (data.guest_count !== undefined) {
+      updateData.guest_count = data.guest_count;
+    }
+
     // セッションを更新
     const { data: updatedSession, error: updateError } = await supabase
       .from('sessions')
@@ -70,7 +75,8 @@ export async function PATCH(
       start_at: updatedSession.start_at,
       charge_started_at: updatedSession.charge_started_at,
       selected_cast_id: updatedSession.selected_cast_id,
-      is_new_customer: updatedSession.is_new_customer
+      is_new_customer: updatedSession.is_new_customer,
+      guest_count: updatedSession.guest_count
     });
   } catch (error) {
     console.error('セッション更新エラー:', error);

@@ -61,7 +61,7 @@ async function getFormattedSmaregiProducts(storeId: string, clientId: string, cl
       }
 
       formattedProducts.push({
-        productId: product.productCode,
+        productId: product.productId,
         name: product.productName,
         price: parseInt(product.price, 10),
         categoryName: categoryName,
@@ -281,10 +281,53 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 3. スマレジに存在しないメニューを削除
+    // スマレジから取得した商品IDのリストを作成
+    const smaregiProductIds = smaregiProducts.map(product => product.productId);
+
+    // 現在の店舗のメニュー一覧を取得
+    const { data: existingMenus, error: menusError } = await supabase
+      .from('menus')
+      .select('menu_id, product_id')
+      .eq('store_id', storeId);
+
+    if (menusError) {
+      console.error('メニュー一覧取得エラー:', menusError);
+      return NextResponse.json(
+        { error: 'メニュー一覧の取得に失敗しました' },
+        { status: 500 }
+      );
+    }
+
+    // スマレジに存在しないメニューを特定
+    const menusToDelete = existingMenus.filter(menu => !smaregiProductIds.includes(menu.product_id));
+
+    // 削除対象のメニューIDリストを作成
+    const menuIdsToDelete = menusToDelete.map(menu => menu.menu_id);
+
+    let deletedCount = 0;
+
+    // 削除対象のメニューがある場合は削除を実行
+    if (menuIdsToDelete.length > 0) {
+      const { error: deleteError, count } = await supabase
+        .from('menus')
+        .delete()
+        .in('menu_id', menuIdsToDelete);
+
+      if (deleteError) {
+        console.error('メニュー削除エラー:', deleteError);
+        // 削除に失敗しても同期自体は成功とみなす
+      } else {
+        deletedCount = count || 0;
+        console.log(`${deletedCount}件のメニューを削除しました`);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       count: menusToUpsert.length,
-      message: `${menusToUpsert.length}件のメニューを同期しました`,
+      deletedCount: deletedCount,
+      message: `${menusToUpsert.length}件のメニューを同期し、${deletedCount}件のメニューを削除しました`,
     });
   } catch (error) {
     console.error('スマレジ同期エラー:', error);

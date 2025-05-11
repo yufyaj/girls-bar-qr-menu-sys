@@ -2,49 +2,6 @@ import { getStoreByCode } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import LoginForm from './login-form';
 
-// ログインアクション
-async function loginAction(formData: FormData) {
-  'use server';
-
-  try {
-    const email = formData.get('email') as string;
-    const password = formData.get('password') as string;
-    const storeCode = formData.get('store_code') as string;
-
-    if (!email || !password || !storeCode) {
-      return { error: 'メールアドレス、パスワード、店舗コードは必須です' };
-    }
-
-    // APIを使用してログイン処理を実行
-    const response = await fetch(`${process.env.NEXT_PUBLIC_URL || ''}/api/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email,
-        password,
-        storeCode,
-      }),
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      console.error('Login error details:', result.error);
-      return { error: result.error || 'ログインに失敗しました' };
-    }
-
-    console.log('Login successful');
-
-    // ダッシュボードにリダイレクト
-    return { success: true as const, redirectTo: '/portal/dashboard' };
-  } catch (error) {
-    console.error('Login error:', error);
-    return { error: 'ログイン処理中にエラーが発生しました' };
-  }
-}
-
 // ページコンポーネント
 export default async function LoginPage({ params }: { params: Promise<{ store_code: string }> }) {
   const { store_code } = await params;
@@ -72,7 +29,6 @@ export default async function LoginPage({ params }: { params: Promise<{ store_co
         <LoginForm
           storeCode={store_code}
           storeName={store.name}
-          loginAction={loginAction}
         />
       </div>
     </div>

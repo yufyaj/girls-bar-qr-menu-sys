@@ -313,7 +313,7 @@ export default function CheckoutDisplay({
                     ×{item.quantity}
                   </span>
                 </div>
-                <span>{item.total.toLocaleString()}円</span>
+                <span>{item.total.toLocaleString()}円(税込)</span>
               </div>
             ))}
           </div>
@@ -324,17 +324,17 @@ export default function CheckoutDisplay({
 
       <div className="border-t border-gray-200 pt-4">
         <div className="flex justify-between mb-2">
-          <span>注文合計:</span>
+          <span>注文合計(税込):</span>
           <span>{orderTotalPrice.toLocaleString()}円</span>
         </div>
         {pricePerHalfHour > 0 && (
           <div className="flex justify-between mb-2">
-            <span>テーブル料金:</span>
+            <span>テーブル料金(税込):</span>
             <span>{chargeAmount.toLocaleString()}円</span>
           </div>
         )}
         <div className="flex justify-between font-bold text-lg">
-          <span>合計金額:</span>
+          <span>合計金額(税込):</span>
           <span>{totalAmount.toLocaleString()}円</span>
         </div>
       </div>

@@ -174,7 +174,7 @@ export default function MenuList({ menus }: MenuListProps) {
                     </div>
                     <div className="flex flex-col items-end">
                       <span className="text-lg font-medium text-gray-900">
-                        {menu.price.toLocaleString()}円
+                        {menu.price.toLocaleString()}円 <span className="text-xs font-normal">(税込)</span>
                       </span>
                       <div className="flex space-x-1 mt-1">
                         {!menu.is_available && (

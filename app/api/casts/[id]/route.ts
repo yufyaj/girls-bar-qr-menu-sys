@@ -80,14 +80,25 @@ export async function GET(
         id,
         role,
         user_id,
-        auth.users (
-          email
-        )
+        display_name,
+        nomination_fee
       `)
       .eq('id', id)
       .eq('store_id', storeId)
       .eq('role', 'cast')
       .single();
+
+    // ユーザー情報を別途取得
+    if (cast && cast.user_id) {
+      try {
+        const { data: userData } = await supabase.auth.admin.getUserById(cast.user_id);
+        if (userData && userData.user) {
+          cast.email = userData.user.email;
+        }
+      } catch (userError) {
+        console.error('ユーザー情報取得エラー:', userError);
+      }
+    }
 
     if (error) {
       console.error('キャスト取得エラー:', error);
@@ -109,7 +120,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
     const { id } = await params;
@@ -228,16 +239,22 @@ export async function PATCH(
       );
     }
 
-    // 表示名を更新
-    const { error: displayNameError } = await supabase
+    // 指名料のバリデーション
+    const nominationFee = data.nomination_fee !== undefined ? parseInt(data.nomination_fee, 10) : 0;
+
+    // 表示名と指名料を更新
+    const { error: updateStoreUserError } = await supabase
       .from('store_users')
-      .update({ display_name: data.display_name })
+      .update({
+        display_name: data.display_name,
+        nomination_fee: isNaN(nominationFee) ? 0 : nominationFee
+      })
       .eq('id', cast.id);
 
-    if (displayNameError) {
-      console.error('表示名更新エラー:', displayNameError);
+    if (updateStoreUserError) {
+      console.error('キャスト情報更新エラー:', updateStoreUserError);
       return NextResponse.json(
-        { error: '表示名の更新に失敗しました' },
+        { error: 'キャスト情報の更新に失敗しました' },
         { status: 500 }
       );
     }
@@ -254,7 +271,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
     const { id } = await params;

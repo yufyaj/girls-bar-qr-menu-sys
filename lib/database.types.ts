@@ -96,6 +96,7 @@ export interface Database {
           table_id: string
           start_at: string
           charge_started_at: string | null
+          guest_count: number | null
         }
         Insert: {
           session_id?: string
@@ -103,6 +104,7 @@ export interface Database {
           table_id: string
           start_at?: string
           charge_started_at?: string | null
+          guest_count?: number | null
         }
         Update: {
           session_id?: string
@@ -110,6 +112,7 @@ export interface Database {
           table_id?: string
           start_at?: string
           charge_started_at?: string | null
+          guest_count?: number | null
         }
       }
       session_seat_events: {

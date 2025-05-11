@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
       .from('seat_types')
       .insert({
         display_name: data.display_name,
-        price_per_unit: data.price_per_unit, 
+        price_per_unit: data.price_per_unit,
         time_unit_minutes: data.time_unit_minutes || 30, // デフォルトは30分
         store_id: storeId
       })

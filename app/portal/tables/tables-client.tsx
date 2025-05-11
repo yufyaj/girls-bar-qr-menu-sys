@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { subscribeToSessions, subscribeToTables } from '@/lib/supabase-realtime';
 import ChargeControlButton from './_components/charge-control-button';
 import TableMoveButton from './_components/table-move-button';
+import CastNominationButton from './_components/cast-nomination-button';
 
 // テーブルの型定義
 interface SeatType {
@@ -115,7 +116,7 @@ export default function TablesClient({ initialTables, storeId }: TablesClientPro
 
           if (session && session.charge_started_at) {
             const startTime = new Date(session.charge_started_at);
-            
+
             // 一時停止中かどうかを確認
             isPaused = !!session.charge_paused_at;
 
@@ -160,13 +161,13 @@ export default function TablesClient({ initialTables, storeId }: TablesClientPro
 
     // Supabaseリアルタイムサブスクリプションのセットアップ
     console.log('Supabaseリアルタイムサブスクリプションを設定中...');
-    
+
     // テーブルテーブルのサブスクリプション
     const unsubscribeTables = subscribeToTables(storeId, (payload) => {
       console.log('テーブルテーブル更新イベント:', payload);
       fetchLatestData();
     });
-    
+
     // セッションテーブルのサブスクリプション
     const unsubscribeSessions = subscribeToSessions(storeId, (payload) => {
       console.log('セッションテーブル更新イベント:', payload);
@@ -200,7 +201,7 @@ export default function TablesClient({ initialTables, storeId }: TablesClientPro
     const updatedTables = tables.map(table => {
       if (table.session && table.session.charge_started_at) {
         const startTime = new Date(table.session.charge_started_at);
-        
+
         // 一時停止中かどうかを確認
         const isPaused = !!table.session.charge_paused_at;
 
@@ -304,6 +305,17 @@ export default function TablesClient({ initialTables, storeId }: TablesClientPro
                             name: t.name,
                             seat_types: t.seat_types
                           }))}
+                        />
+                      </div>
+                    )}
+
+                    {/* キャスト指名ボタン */}
+                    {table.session && (
+                      <div className="mt-2">
+                        <CastNominationButton
+                          tableId={table.table_id}
+                          sessionId={table.session.session_id}
+                          storeId={storeId}
                         />
                       </div>
                     )}

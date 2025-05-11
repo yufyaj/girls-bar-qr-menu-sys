@@ -162,7 +162,7 @@ export default function MenuDisplay({
               ) : null}
 
               <p className="text-base font-bold mt-1 text-gray-900">
-                ¥{menu.price.toLocaleString()}
+                ¥{menu.price.toLocaleString()} <span className="text-xs font-normal">(税込)</span>
               </p>
             </div>
 

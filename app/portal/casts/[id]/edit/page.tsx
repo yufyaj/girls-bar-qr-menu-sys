@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
 import CastForm from '../../cast-form';
 
-export default async function EditCastPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EditCastPage({ params }: { params: { id: string } }) {
   const { id } = await params;
   const cookieStore = await cookies();
   const storeId = cookieStore.get('store-id')?.value;
@@ -14,7 +14,13 @@ export default async function EditCastPage({ params }: { params: Promise<{ id: s
   // 現在のリクエストのCookieをすべて取得して転送
   const allCookies = cookieStore.getAll();
   const cookieHeader = allCookies
-    .map(cookie => `${cookie.name}=${cookie.value}`)
+    .map(cookie => {
+      // base64エンコードされたトークンの場合はそのまま使用
+      if (cookie.name.includes('auth-token')) {
+        return `${cookie.name}=${encodeURIComponent(cookie.value)}`;
+      }
+      return `${cookie.name}=${cookie.value}`;
+    })
     .join('; ');
 
   console.log('EditCast: 転送するCookie:',
@@ -58,8 +64,11 @@ export default async function EditCastPage({ params }: { params: Promise<{ id: s
   }
 
   // APIからキャスト情報を取得
-  const castResponse = await fetch(`${process.env.NEXT_PUBLIC_URL || ''}/api/casts/${id}`, {
-    cache: 'no-store'
+  const castResponse = await fetch(`${process.env.NEXT_PUBLIC_URL || ''}/api/casts/${id}?storeId=${storeId}`, {
+    cache: 'no-store',
+    headers: {
+      'Cookie': cookieHeader
+    }
   });
 
   if (!castResponse.ok) {
@@ -68,7 +77,10 @@ export default async function EditCastPage({ params }: { params: Promise<{ id: s
   }
 
   const storeUser = await castResponse.json();
-  console.log('キャスト情報取得結果:', { storeUser });
+  console.log('キャスト情報取得結果:', JSON.stringify(storeUser, null, 2));
+
+  // メールアドレスの取得
+  let email = storeUser.email || '';
 
   return (
     <div className="py-6">
@@ -81,8 +93,9 @@ export default async function EditCastPage({ params }: { params: Promise<{ id: s
             <CastForm
               storeId={storeId}
               castId={storeUser.id}
-              email={storeUser.email || ''}
+              email={email}
               displayName={storeUser.display_name || ''}
+              nominationFee={storeUser.nomination_fee || 0}
               isEdit={true}
             />
           </div>

@@ -57,22 +57,22 @@ export default function LayoutWrapper({
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
-      <Header 
-        storeName={storeName} 
-        userEmail={userEmail} 
+      <Header
+        storeName={storeName}
+        userEmail={userEmail}
         onToggleSideMenu={toggleSideMenu}
         isSideMenuOpen={isSideMenuOpen}
       />
 
       <div className="flex flex-1 relative">
-        <SideMenu 
-          navLinks={navLinks} 
-          userRole={userRole} 
-          isSideMenuOpen={isSideMenuOpen} 
-          onToggleSideMenu={toggleSideMenu} 
+        <SideMenu
+          navLinks={navLinks}
+          userRole={userRole}
+          isSideMenuOpen={isSideMenuOpen}
+          onToggleSideMenu={toggleSideMenu}
         />
 
-        <main className={`flex-1 transition-all duration-300 ease-in-out py-10 ${isSideMenuOpen ? 'md:ml-64' : 'md:ml-16'}`}>
+        <main className="flex-1 transition-all duration-300 ease-in-out py-10">
           <div className="px-4 sm:px-6 lg:px-8">
             {children}
           </div>

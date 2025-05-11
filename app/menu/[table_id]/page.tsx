@@ -57,7 +57,15 @@ export default async function MenuPage({
   searchParams
 }: {
   params: Promise<{ table_id: string }>;
-  searchParams: Promise<{ complete?: string; total?: string; store?: string; table?: string; }>
+  searchParams: Promise<{
+    complete?: string;
+    total?: string;
+    subtotal?: string;
+    tax?: string;
+    taxRate?: string;
+    store?: string;
+    table?: string;
+  }>
 }) {
   const { table_id } = await params;
   const searchParamsData = await searchParams;
@@ -69,17 +77,22 @@ export default async function MenuPage({
 
   if (isCheckoutComplete && searchParamsData.total) {
     const totalAmount = parseInt(searchParamsData.total, 10) || 0;
+    const subtotalAmount = parseInt(searchParamsData.subtotal || '0', 10) || 0;
+    const taxAmount = parseInt(searchParamsData.tax || '0', 10) || 0;
+    const taxRate = parseFloat(searchParamsData.taxRate || '10.0') || 10.0;
+
     // 値が空文字列の場合のフォールバック
     const storeName = searchParamsData.store ? decodeURIComponent(searchParamsData.store) : '不明な店舗';
     const tableName = searchParamsData.table ? decodeURIComponent(searchParamsData.table) : '不明なテーブル';
-
-
 
     return (
       <CheckoutComplete
         storeName={storeName}
         tableName={tableName}
         totalAmount={totalAmount}
+        subtotalAmount={subtotalAmount}
+        taxAmount={taxAmount}
+        taxRate={taxRate}
       />
     );
   }

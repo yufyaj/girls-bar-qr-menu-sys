@@ -10,6 +10,7 @@ interface StoreUser {
   user_id: string;
   display_name?: string;
   email?: string;
+  nomination_fee?: number;
 }
 
 export default async function CastsPage() {
@@ -171,6 +172,9 @@ export default async function CastsPage() {
                     <div>
                       <p className="text-sm font-medium text-blue-600 truncate">{storeUser.display_name || '名前なし'}</p>
                       <p className="mt-1 text-sm text-gray-500">{storeUser.email || ''}</p>
+                      {storeUser.nomination_fee !== undefined && storeUser.nomination_fee > 0 && (
+                        <p className="mt-1 text-sm text-gray-500">指名料: {storeUser.nomination_fee.toLocaleString()}円</p>
+                      )}
                     </div>
                     <div className="flex space-x-2">
                       <Link

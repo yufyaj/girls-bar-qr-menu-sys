@@ -4,10 +4,10 @@ import { createServerSupabaseClient } from '@/lib/supabase';
 // セッション削除API
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { session_id: string } }
+  { params }: { params: Promise<{ session_id: string }> }
 ) {
   try {
-    const { session_id } = params;
+    const { session_id } = await params;
     console.log('セッション削除API: リクエスト受信', { session_id });
 
     // データベース操作用クライアント

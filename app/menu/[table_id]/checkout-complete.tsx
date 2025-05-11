@@ -7,12 +7,18 @@ interface CheckoutCompleteProps {
   storeName: string;
   tableName: string;
   totalAmount: number;
+  subtotalAmount?: number;
+  taxAmount?: number;
+  taxRate?: number;
 }
 
 export default function CheckoutComplete({
   storeName,
   tableName,
-  totalAmount
+  totalAmount,
+  subtotalAmount = 0,
+  taxAmount = 0,
+  taxRate = 10.0
 }: CheckoutCompleteProps) {
   const router = useRouter();
 
@@ -46,9 +52,21 @@ export default function CheckoutComplete({
           <p className="text-gray-700 mb-4">
             テーブル: {tableName}
           </p>
-          <p className="text-xl font-semibold">
-            合計金額: {totalAmount.toLocaleString()}円
-          </p>
+
+          <div className="mt-4 text-left">
+            <div className="flex justify-between mb-1">
+              <span className="text-gray-600">小計（内税）:</span>
+              <span className="text-gray-600">{subtotalAmount.toLocaleString()}円</span>
+            </div>
+            <div className="flex justify-between mb-1">
+              <span className="text-gray-600">内消費税（{taxRate}%）:</span>
+              <span className="text-gray-600">{taxAmount.toLocaleString()}円</span>
+            </div>
+            <div className="flex justify-between text-xl font-semibold mt-2">
+              <span>合計金額:</span>
+              <span>{totalAmount.toLocaleString()}円</span>
+            </div>
+          </div>
         </div>
 
         <div className="border-t border-gray-200 pt-6">

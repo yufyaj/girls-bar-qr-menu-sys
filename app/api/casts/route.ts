@@ -82,7 +82,8 @@ export async function GET(request: NextRequest) {
         id,
         role,
         user_id,
-        display_name
+        display_name,
+        nomination_fee
       `)
       .eq('store_id', storeId)
       .eq('role', 'cast');
@@ -197,6 +198,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 指名料のバリデーション
+    const nominationFee = data.nomination_fee !== undefined ? parseInt(data.nomination_fee, 10) : 0;
+
     // 店舗ユーザー関連付けを作成
     const { data: storeUser, error: storeUserError } = await supabase
       .from('store_users')
@@ -204,7 +208,8 @@ export async function POST(request: NextRequest) {
         store_id: data.store_id,
         user_id: newUser.user.id,
         role: 'cast',
-        display_name: data.display_name
+        display_name: data.display_name,
+        nomination_fee: isNaN(nominationFee) ? 0 : nominationFee
       })
       .select()
       .single();

@@ -1,10 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Database } from '@/lib/database.types';
 
-type SeatType = Database['public']['Tables']['seat_types']['Row'];
 // マイグレーション後はcodeカラムが存在しないため、型定義を修正
 type SeatTypeInput = {
   display_name: string;
@@ -51,6 +49,8 @@ export default function SeatTypeForm({
       [name]: updatedValue
     }));
   };
+
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -188,6 +188,8 @@ export default function SeatTypeForm({
           {isSubmitting ? '保存中...' : defaultValues.seat_type_id ? '更新' : '作成'}
         </button>
       </div>
+
+
     </form>
   );
 }

@@ -7,6 +7,7 @@ interface Cast {
   id: string;
   user_id: string;
   display_name: string;
+  nomination_fee: number;
 }
 
 interface CastSelectionProps {
@@ -146,6 +147,9 @@ export default function CastSelection({
                 </div>
                 <div className="flex-1 text-left">
                   <p className="font-medium">{cast.display_name}</p>
+                  {cast.nomination_fee > 0 && (
+                    <p className="text-sm text-gray-500">指名料: {cast.nomination_fee.toLocaleString()}円</p>
+                  )}
                 </div>
               </button>
             ))}

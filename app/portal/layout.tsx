@@ -19,7 +19,7 @@ const navLinks: NavLink[] = [
   { href: '/portal/menus', label: 'メニュー管理', roles: ['admin'] },
   { href: '/portal/menu-categories', label: 'カテゴリ管理', roles: ['admin'] },
   { href: '/portal/reports', label: 'レポート', roles: ['admin'] },
-  { href: '/portal/settings', label: 'スマレジ連携', roles: ['admin'] },
+  { href: '/portal/store-settings', label: '店舗設定', roles: ['admin'] },
 ];
 
 export default async function PortalLayout({

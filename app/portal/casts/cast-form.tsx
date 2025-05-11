@@ -8,6 +8,7 @@ interface CastFormProps {
   castId?: string;
   email?: string;
   displayName?: string;
+  nominationFee?: number;
   isEdit?: boolean;
 }
 
@@ -16,6 +17,7 @@ export default function CastForm({
   castId,
   email = '',
   displayName = '',
+  nominationFee = 0,
   isEdit = false,
 }: CastFormProps) {
   const router = useRouter();
@@ -27,14 +29,25 @@ export default function CastForm({
     email: email,
     displayName: displayName,
     password: '',
+    nominationFee: nominationFee,
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
+
+    // 指名料の場合は数値に変換
+    if (name === 'nominationFee') {
+      const numValue = value === '' ? 0 : parseInt(value, 10);
+      setFormData({
+        ...formData,
+        [name]: isNaN(numValue) ? 0 : numValue,
+      });
+    } else {
+      setFormData({
+        ...formData,
+        [name]: value,
+      });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -55,6 +68,7 @@ export default function CastForm({
             email: formData.email,
             display_name: formData.displayName,
             password: formData.password || undefined, // パスワードが空の場合は送信しない
+            nomination_fee: formData.nominationFee,
           }),
         });
 
@@ -76,6 +90,7 @@ export default function CastForm({
             display_name: formData.displayName,
             password: formData.password,
             store_id: storeId,
+            nomination_fee: formData.nominationFee,
           }),
         });
 
@@ -90,6 +105,7 @@ export default function CastForm({
           email: '',
           displayName: '',
           password: '',
+          nominationFee: 0,
         });
       }
 
@@ -224,6 +240,27 @@ export default function CastForm({
           </div>
           <p className="mt-1 text-sm text-gray-500">
             パスワードは8文字以上で設定してください
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="nominationFee" className="block text-sm font-medium text-gray-700">
+            指名料（円）
+          </label>
+          <div className="mt-1">
+            <input
+              type="number"
+              name="nominationFee"
+              id="nominationFee"
+              value={formData.nominationFee}
+              onChange={handleChange}
+              className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+              min="0"
+              step="100"
+            />
+          </div>
+          <p className="mt-1 text-sm text-gray-500">
+            このキャストの指名料を設定してください
           </p>
         </div>
 

@@ -129,7 +129,7 @@ export async function PATCH(
       .from('seat_types')
       .update({
         display_name: data.display_name,
-        price_per_unit: data.price_per_unit, 
+        price_per_unit: data.price_per_unit,
         time_unit_minutes: data.time_unit_minutes || 30 // デフォルトは30分
       })
       .eq('seat_type_id', seatTypeId)

@@ -52,7 +52,59 @@ export default function CheckoutModal({
   const [checkoutData, setCheckoutData] = useState<any>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [orderTotalPrice, setOrderTotalPrice] = useState<number>(0);
+  const [taxRate, setTaxRate] = useState<number>(10.0); // デフォルト税率10%
+  const [taxAmount, setTaxAmount] = useState<number>(0);
   const [isLoadingOrders, setIsLoadingOrders] = useState<boolean>(true);
+  const [nominationFee, setNominationFee] = useState<number>(0);
+  const [selectedCastName, setSelectedCastName] = useState<string>('');
+  const [nominations, setNominations] = useState<{cast_id: string, display_name: string, nomination_fee: number}[]>([]);
+
+  // 指名料を取得する関数
+  const fetchNominationFees = async (storeId: string) => {
+    try {
+      // 新しい指名情報を取得
+      const nominationsResponse = await fetch(`/api/sessions/${sessionId}/nominations`);
+      if (nominationsResponse.ok) {
+        const nominationsData = await nominationsResponse.json();
+        if (nominationsData && nominationsData.length > 0) {
+          setNominations(nominationsData);
+
+          // 指名料の合計を計算
+          let totalNominationFee = 0;
+          for (const nomination of nominationsData) {
+            totalNominationFee += nomination.nomination_fee || 0;
+          }
+          setNominationFee(totalNominationFee);
+          console.log('指名料合計:', totalNominationFee, '円');
+          return totalNominationFee;
+        }
+      }
+
+      // 新しい指名情報がない場合は、旧方式の指名情報を確認
+      const sessionResponse = await fetch(`/api/tables/${tableId}/sessions/${sessionId}`);
+      if (sessionResponse.ok) {
+        const sessionData = await sessionResponse.json();
+        if (sessionData.selected_cast_id) {
+          const castResponse = await fetch(`/api/casts?store_id=${storeId}`);
+          if (castResponse.ok) {
+            const castsData = await castResponse.json();
+            const selectedCast = castsData.find((cast: any) => cast.user_id === sessionData.selected_cast_id);
+            if (selectedCast) {
+              setSelectedCastName(selectedCast.display_name || '');
+              setNominationFee(selectedCast.nomination_fee || 0);
+              console.log('旧方式の指名料:', selectedCast.nomination_fee, '円');
+              return selectedCast.nomination_fee || 0;
+            }
+          }
+        }
+      }
+
+      return 0;
+    } catch (error) {
+      console.error('指名料取得エラー:', error);
+      return 0;
+    }
+  };
 
   // 注文データと最新の料金を取得
   useEffect(() => {
@@ -60,6 +112,22 @@ export default function CheckoutModal({
       if (!isOpen) return;
 
       try {
+        // 店舗情報を取得して税率を設定
+        const storeResponse = await fetch(`/api/sessions/${sessionId}/store-info`);
+        let storeId = '';
+        if (storeResponse.ok) {
+          const storeData = await storeResponse.json();
+          if (storeData.tax_rate !== undefined) {
+            setTaxRate(storeData.tax_rate);
+          }
+          storeId = storeData.store_id || '';
+        } else {
+          console.error('店舗情報取得エラー:', await storeResponse.text());
+        }
+
+        // 指名料を取得
+        await fetchNominationFees(storeId);
+
         // 注文データを取得
         console.log('注文データ取得開始:', { sessionId });
         setIsLoadingOrders(true);
@@ -177,7 +245,7 @@ export default function CheckoutModal({
     }
   };
 
-  // テーブル料金の計算
+  // テーブル料金と指名料の計算
   useEffect(() => {
     if (!chargeStartedAt || !sessionId) return;
 
@@ -190,6 +258,29 @@ export default function CheckoutModal({
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chargeStartedAt, chargePausedAt, pricePerHalfHour, timeUnitMinutes, sessionId]);
+
+  // モーダルが開かれるたびに指名料を再計算
+  useEffect(() => {
+    if (!isOpen || !sessionId) return;
+
+    const fetchStoreAndNominations = async () => {
+      try {
+        // 店舗情報を取得
+        const storeResponse = await fetch(`/api/sessions/${sessionId}/store-info`);
+        if (storeResponse.ok) {
+          const storeData = await storeResponse.json();
+          const storeId = storeData.store_id || '';
+          // 指名料を再取得
+          await fetchNominationFees(storeId);
+        }
+      } catch (error) {
+        console.error('指名料再取得エラー:', error);
+      }
+    };
+
+    fetchStoreAndNominations();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, sessionId]);
 
   // 会計処理
   const handleCheckout = async (e?: React.MouseEvent | React.FormEvent) => {
@@ -207,10 +298,18 @@ export default function CheckoutModal({
     setCheckoutError(null);
 
     try {
-      // 会計処理の前に最新の料金を取得
+      // 会計処理の前に最新の料金と指名料を取得
       console.log('会計前に最新の料金を取得します');
       const latestChargeAmount = await fetchChargeAmount();
       console.log('最新の料金:', latestChargeAmount);
+
+      // 店舗IDを取得して指名料も再取得
+      const storeResponse = await fetch(`/api/sessions/${sessionId}/store-info`);
+      if (storeResponse.ok) {
+        const storeData = await storeResponse.json();
+        const storeId = storeData.store_id || '';
+        await fetchNominationFees(storeId);
+      }
 
       // 最新の料金を状態に設定（表示を更新）
       setChargeAmount(latestChargeAmount);
@@ -251,6 +350,12 @@ export default function CheckoutModal({
 
       // APIから返された料金を使用して表示を更新
       setChargeAmount(data.charge_amount || chargeAmount);
+      setNominationFee(data.nomination_fee || nominationFee);
+
+      // 指名情報が返された場合は更新
+      if (data.nominations && data.nominations.length > 0) {
+        setNominations(data.nominations);
+      }
 
       // 会計成功
       setCheckoutSuccess(true);
@@ -260,10 +365,21 @@ export default function CheckoutModal({
       // APIからの金額を使用
       const params = new URLSearchParams({
         complete: 'true',
-        total: data.total_amount.toString(), // APIから返された合計金額を使用
+        total: data.total_amount.toString(), // APIから返された税込み合計金額を使用
+        subtotal: data.subtotal_amount.toString(), // APIから返された税抜き合計金額を使用
+        tax: data.tax_amount.toString(), // APIから返された消費税額を使用
+        taxRate: data.tax_rate.toString(), // APIから返された消費税率を使用
         store: encodeURIComponent(storeName || '不明な店舗'),
         table: encodeURIComponent(tableName || '不明なテーブル')
       });
+
+      // 指名料がある場合はパラメータに追加
+      if (data.nomination_fee && data.nomination_fee > 0) {
+        params.append('nominationFee', data.nomination_fee.toString());
+        if (selectedCastName) {
+          params.append('castName', encodeURIComponent(selectedCastName));
+        }
+      }
 
       // クライアントサイドでのみ実行
       if (typeof window !== 'undefined') {
@@ -314,8 +430,19 @@ export default function CheckoutModal({
     }
   };
 
-  // 合計金額（注文 + テーブル料金）
-  const totalAmount = orderTotalPrice + chargeAmount;
+  // 税込み合計金額（注文 + テーブル料金 + 指名料）
+  const totalAmount = orderTotalPrice + chargeAmount + nominationFee;
+
+  // 内税の消費税額を計算（税込み金額から逆算）
+  // 税込み金額 ÷ (1 + 税率/100) = 税抜き金額
+  // 税込み金額 - 税抜き金額 = 消費税額
+  const subtotalAmount = Math.floor(totalAmount / (1 + taxRate / 100));
+  const calculatedTaxAmount = totalAmount - subtotalAmount;
+
+  // useEffectの外でもtaxAmountを更新
+  useEffect(() => {
+    setTaxAmount(calculatedTaxAmount);
+  }, [calculatedTaxAmount]);
 
   return (
     <Modal
@@ -382,7 +509,7 @@ export default function CheckoutModal({
                     </span>
                   </div>
                   <span>
-                    {item.total.toLocaleString()}円
+                    {item.total.toLocaleString()}円(税込)
                   </span>
                 </li>
               ))}
@@ -393,17 +520,32 @@ export default function CheckoutModal({
 
       <div className="border-t border-gray-200 pt-4">
         <div className="flex justify-between mb-2">
-          <span>注文合計:</span>
+          <span>注文合計(税込):</span>
           <span>{orderTotalPrice.toLocaleString()}円</span>
         </div>
         {pricePerHalfHour > 0 && (
           <div className="flex justify-between mb-2">
-            <span>テーブル料金:</span>
+            <span>テーブル料金(税込):</span>
             <span>{chargeAmount.toLocaleString()}円</span>
           </div>
         )}
+        {/* 指名料を合計で表示 */}
+        {nominationFee > 0 && (
+          <div className="flex justify-between mb-2">
+            <span>指名料合計(税込):</span>
+            <span>{nominationFee.toLocaleString()}円</span>
+          </div>
+        )}
+        <div className="flex justify-between mb-2">
+          <span>小計（内税）:</span>
+          <span>{subtotalAmount.toLocaleString()}円</span>
+        </div>
+        <div className="flex justify-between mb-2">
+          <span>内消費税（{taxRate}%）:</span>
+          <span>{calculatedTaxAmount.toLocaleString()}円</span>
+        </div>
         <div className="flex justify-between font-bold text-lg">
-          <span>合計金額:</span>
+          <span>合計金額(税込):</span>
           <span>{totalAmount.toLocaleString()}円</span>
         </div>
       </div>

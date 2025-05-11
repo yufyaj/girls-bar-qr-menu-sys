@@ -6,6 +6,7 @@ interface Cast {
   id: string;
   user_id: string;
   display_name: string;
+  nomination_fee: number;
 }
 
 interface CastSelectModalProps {
@@ -27,14 +28,14 @@ export default function CastSelectModal({ isOpen, onClose, onSelect, storeId }: 
     const fetchCasts = async () => {
       setLoading(true);
       setError(null);
-      
+
       try {
         const response = await fetch(`/api/casts?store_id=${storeId}`);
-        
+
         if (!response.ok) {
           throw new Error('キャスト情報の取得に失敗しました');
         }
-        
+
         const data = await response.json();
         setCasts(data);
       } catch (err) {
@@ -106,6 +107,9 @@ export default function CastSelectModal({ isOpen, onClose, onSelect, storeId }: 
                 </div>
                 <div className="flex-1 text-left">
                   <p className="font-medium">{cast.display_name}</p>
+                  {cast.nomination_fee > 0 && (
+                    <p className="text-sm text-gray-500">指名料: {cast.nomination_fee.toLocaleString()}円</p>
+                  )}
                 </div>
               </button>
             ))}

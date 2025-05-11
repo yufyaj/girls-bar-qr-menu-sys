@@ -44,8 +44,16 @@ export default function SmaregiSyncButton({
       }
 
       const data = await response.json();
-      setSuccess(`スマレジ同期が完了しました。${data.count || 0}件のメニューを更新しました。`);
-      
+      const updateMessage = `${data.count || 0}件のメニューを更新`;
+      const deleteMessage = data.deletedCount ? `${data.deletedCount}件のメニューを削除` : '';
+
+      // 削除メッセージがある場合は、更新メッセージと組み合わせる
+      const resultMessage = deleteMessage
+        ? `${updateMessage}し、${deleteMessage}しました。`
+        : `${updateMessage}しました。`;
+
+      setSuccess(`スマレジ同期が完了しました。${resultMessage}`);
+
       // 画面を更新
       router.refresh();
     } catch (err) {

@@ -45,11 +45,22 @@ export async function PATCH(request: NextRequest) {
     const data = await request.json();
 
     // バリデーション
-    if (typeof data.enable_cast_management !== 'boolean' || typeof data.enable_smaregi_integration !== 'boolean') {
+    if (typeof data.enable_smaregi_integration !== 'boolean') {
       return NextResponse.json(
         { error: '無効なデータ形式です' },
         { status: 400 }
       );
+    }
+
+    // 消費税率のバリデーション
+    if (data.tax_rate !== undefined) {
+      const taxRate = parseFloat(data.tax_rate);
+      if (isNaN(taxRate) || taxRate < 0 || taxRate > 100) {
+        return NextResponse.json(
+          { error: '消費税率は0〜100の範囲で入力してください' },
+          { status: 400 }
+        );
+      }
     }
 
     // スマレジ連携キーのバリデーション
@@ -65,9 +76,13 @@ export async function PATCH(request: NextRequest) {
 
     // 更新データの準備
     const updateData: any = {
-      enable_cast_management: data.enable_cast_management,
       enable_smaregi_integration: data.enable_smaregi_integration
     };
+
+    // 消費税率が指定されている場合は更新
+    if (data.tax_rate !== undefined) {
+      updateData.tax_rate = parseFloat(data.tax_rate);
+    }
 
     // スマレジ連携が有効な場合、キー情報も更新
     if (data.enable_smaregi_integration) {

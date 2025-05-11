@@ -5,6 +5,7 @@ import axios from 'axios';
  * @param clientId クライアントID
  * @param clientSecret クライアントシークレット
  * @param contractId 契約ID
+ * @param scope APIスコープ（デフォルト: 'pos.products:read pos.transactions:write'）
  * @param isSandbox サンドボックス環境かどうか
  * @returns アクセストークン
  */
@@ -12,6 +13,7 @@ export async function getSmaregiAccessToken(
   clientId: string,
   clientSecret: string,
   contractId: string,
+  scope: string = 'pos.products:read pos.transactions:write',
   isSandbox: boolean = true
 ): Promise<string> {
   const baseUrl = isSandbox ? 'https://id.smaregi.dev' : 'https://id.smaregi.jp';
@@ -24,7 +26,7 @@ export async function getSmaregiAccessToken(
       url,
       new URLSearchParams({
         grant_type: 'client_credentials',
-        scope: 'pos.products:read',
+        scope: scope,
       }).toString(),
       {
         headers: {
@@ -76,6 +78,12 @@ export async function fetchSmaregiProducts(
       });
 
       const products = response.data;
+
+      // 最初のページの最初の商品のデータ構造をログ出力（デバッグ用）
+      if (page === 1 && products.length > 0) {
+        console.log('スマレジ商品情報の構造サンプル:', JSON.stringify(products[0], null, 2));
+      }
+
       allProducts = [...allProducts, ...products];
 
       // 取得件数が指定した上限より少ない場合、全ての商品を取得したと判断
@@ -264,5 +272,55 @@ export async function fetchSmaregiCategories(
   } catch (error) {
     console.error('スマレジ部門情報取得エラー:', error);
     throw new Error('スマレジからの部門情報取得に失敗しました');
+  }
+}
+
+/**
+ * スマレジAPIに取引データを登録する
+ * @param accessToken アクセストークン
+ * @param contractId 契約ID
+ * @param transactionData 取引データ
+ * @param isSandbox サンドボックス環境かどうか
+ * @returns 登録された取引情報
+ */
+export async function registerSmaregiTransaction(
+  accessToken: string,
+  contractId: string,
+  transactionData: any,
+  isSandbox: boolean = true
+): Promise<any> {
+  const baseUrl = isSandbox ? 'https://api.smaregi.dev' : 'https://api.smaregi.jp';
+  const url = `${baseUrl}/${contractId}/pos/transactions`;
+
+  try {
+    const response = await axios.post(
+      url,
+      transactionData,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        }
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error('スマレジ取引登録エラー:', error);
+
+    // エラーレスポンスの詳細情報を出力
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosError = error as { response: { status: number; statusText: string; data: any } };
+      console.error('エラーレスポンス:', {
+        status: axiosError.response.status,
+        statusText: axiosError.response.statusText,
+        data: axiosError.response.data
+      });
+
+      // リクエストデータも出力（デバッグ用）
+      console.error('リクエストデータ:', JSON.stringify(transactionData, null, 2));
+    }
+
+    throw new Error('スマレジへの取引登録に失敗しました');
   }
 }

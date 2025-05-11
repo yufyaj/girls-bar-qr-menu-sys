@@ -132,7 +132,7 @@ export default function CartModal({
               <div className="flex-1">
                 <h3 className="text-lg font-medium">{item.name}</h3>
                 <p className="text-sm text-gray-500">
-                  {item.price.toLocaleString()}円 × {item.quantity}
+                  {item.price.toLocaleString()}円(税込) × {item.quantity}
                 </p>
                 {item.target_cast_name && (
                   <p className="text-sm text-blue-600">
