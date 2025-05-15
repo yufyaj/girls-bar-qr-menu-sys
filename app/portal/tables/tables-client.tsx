@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { subscribeToSessions, subscribeToTables } from '@/lib/supabase-realtime';
 import ChargeControlButton from './_components/charge-control-button';
 import TableMoveButton from './_components/table-move-button';
 import CastNominationButton from './_components/cast-nomination-button';
@@ -68,30 +67,31 @@ export default function TablesClient({ initialTables, storeId }: TablesClientPro
     // 最新のテーブルとセッションデータを取得する関数
     const fetchLatestData = async () => {
       try {
-        // テーブル一覧を取得
-        const tablesResponse = await fetch(`/api/tables?storeId=${storeId}`);
-        let updatedTables: Table[] = [];
-        if (tablesResponse.ok) {
-          updatedTables = await tablesResponse.json();
-        } else {
+        // テーブル一覧とアクティブセッションの両方を取得するリクエストを並列実行
+        const [tablesResponse, sessionsResponse] = await Promise.all([
+          fetch(`/api/tables?storeId=${storeId}`),
+          fetch(`/api/sessions/active?storeId=${storeId}`)
+        ]);
+
+        // エラーチェック
+        if (!tablesResponse.ok) {
           console.error('テーブル一覧の取得に失敗しました:', await tablesResponse.text());
           return;
         }
 
-        // アクティブなセッション情報を取得
-        const sessionsResponse = await fetch(`/api/sessions/active?storeId=${storeId}`);
-        let sessions: Session[] = [];
-        if (sessionsResponse.ok) {
-          sessions = await sessionsResponse.json();
-        } else {
+        if (!sessionsResponse.ok) {
           console.error('セッション情報の取得に失敗しました:', await sessionsResponse.text());
           return;
         }
 
+        // データを取得
+        const updatedTables: Table[] = await tablesResponse.json();
+        const sessions: Session[] = await sessionsResponse.json();
+
         // テーブルIDとセッション情報のマッピングを作成
         const sessionMap = new Map<string, Session>();
         if (sessions && sessions.length > 0) {
-          sessions.forEach(session => {
+          sessions.forEach((session: Session) => {
             const tableIdStr = String(session.table_id);
             if (!sessionMap.has(tableIdStr)) {
               sessionMap.set(tableIdStr, session);
@@ -100,7 +100,7 @@ export default function TablesClient({ initialTables, storeId }: TablesClientPro
         }
 
         // 既存のQRコードを保持しつつ、新しいデータで更新
-        const updatedTablesWithDetails = updatedTables.map(table => {
+        const updatedTablesWithDetails = updatedTables.map((table: Table) => {
           // 既存のテーブル情報を検索
           const existingTable = tables.find(t => t.table_id === table.table_id);
           const qrCode = existingTable?.qrCode || '';
@@ -110,8 +110,8 @@ export default function TablesClient({ initialTables, storeId }: TablesClientPro
           const session = sessionMap.get(tableIdStr);
 
           // 経過時間の計算
-          let elapsedTime = null;
-          let formattedStartTime = null;
+          let elapsedTime: ElapsedTime | undefined = undefined;
+          let formattedStartTime: string | undefined = undefined;
           let isPaused = false;
 
           if (session && session.charge_started_at) {
@@ -159,26 +159,11 @@ export default function TablesClient({ initialTables, storeId }: TablesClientPro
       }
     };
 
-    // Supabaseリアルタイムサブスクリプションのセットアップ
-    console.log('Supabaseリアルタイムサブスクリプションを設定中...');
-
-    // テーブルテーブルのサブスクリプション
-    const unsubscribeTables = subscribeToTables(storeId, (payload) => {
-      console.log('テーブルテーブル更新イベント:', payload);
-      fetchLatestData();
-    });
-
-    // セッションテーブルのサブスクリプション
-    const unsubscribeSessions = subscribeToSessions(storeId, (payload) => {
-      console.log('セッションテーブル更新イベント:', payload);
-      fetchLatestData();
-    });
-
     // 初回データ取得
     fetchLatestData();
 
-    // 定期的なポーリングの設定（30秒ごと）- バックアップとして
-    const pollingInterval = setInterval(fetchLatestData, 30000);
+    // ポーリング間隔を設定（8秒ごと）
+    const pollingInterval = setInterval(fetchLatestData, 8000);
 
     // 画面がフォーカスされたときにも更新
     const handleFocus = () => {
@@ -188,12 +173,10 @@ export default function TablesClient({ initialTables, storeId }: TablesClientPro
     window.addEventListener('focus', handleFocus);
 
     return () => {
-      unsubscribeTables();
-      unsubscribeSessions();
       clearInterval(pollingInterval);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [storeId, tables]);
+  }, [storeId]);
 
   // 経過時間を更新
   useEffect(() => {

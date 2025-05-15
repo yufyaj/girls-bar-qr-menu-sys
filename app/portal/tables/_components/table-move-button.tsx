@@ -57,6 +57,10 @@ export default function TableMoveButton({
       // 移動先テーブルIDを保存
       setSelectedTableId(targetTableId);
 
+      // タイムアウト処理を設定
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒でタイムアウト
+
       // 料金計算のみを行うリクエスト（実際の移動は行わない）
       const response = await fetch(`/api/sessions/${sessionId}/move`, {
         method: 'POST',
@@ -67,7 +71,10 @@ export default function TableMoveButton({
           target_table_id: targetTableId,
           calculate_only: true, // 料金計算のみ行うフラグ
         }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId); // タイムアウトをクリア
 
       const result = await response.json();
       console.log('席移動料金計算応答:', result);
@@ -92,7 +99,11 @@ export default function TableMoveButton({
       }
     } catch (err) {
       console.error('席移動料金計算エラー:', err);
-      setError(err instanceof Error ? err.message : '予期せぬエラーが発生しました');
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setError('リクエストがタイムアウトしました。ネットワーク接続を確認して再試行してください。');
+      } else {
+        setError(err instanceof Error ? err.message : '予期せぬエラーが発生しました');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -106,6 +117,10 @@ export default function TableMoveButton({
       setSuccess(null);
       setIsConfirmModalOpen(false);
 
+      // タイムアウト処理を設定
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒でタイムアウト
+
       const response = await fetch(`/api/sessions/${sessionId}/move`, {
         method: 'POST',
         headers: {
@@ -116,7 +131,10 @@ export default function TableMoveButton({
           apply_full_charge: applyFullCharge,     // 完全経過分の料金を適用するかどうかのフラグ
           apply_partial_charge: applyPartialCharge // 未達成分の料金を適用するかどうかのフラグ
         }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId); // タイムアウトをクリア
 
       const result = await response.json();
       console.log('席移動API応答:', result);
@@ -154,7 +172,11 @@ export default function TableMoveButton({
       }, 3000);
     } catch (err) {
       console.error('席移動エラー:', err);
-      setError(err instanceof Error ? err.message : '予期せぬエラーが発生しました');
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setError('リクエストがタイムアウトしました。処理は完了していない可能性があります。ページを更新してください。');
+      } else {
+        setError(err instanceof Error ? err.message : '予期せぬエラーが発生しました');
+      }
     } finally {
       setIsLoading(false);
     }

@@ -13,7 +13,7 @@ export const createRealtimeClient = () => {
   return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     realtime: {
       params: {
-        eventsPerSecond: 10,
+        eventsPerSecond: 5,
       },
     },
   });
@@ -133,8 +133,33 @@ export const subscribeToTables = (
     {
       event: '*',
       filter: `store_id=eq.${storeId}`,
-      callback,
+      callback: (payload: any) => {
+        // デバウンス処理を追加して短時間に複数のイベントが発生した場合に対応
+        if (typeof window !== 'undefined') {
+          if (window._tableUpdateTimeout) {
+            clearTimeout(window._tableUpdateTimeout);
+          }
+          window._tableUpdateTimeout = setTimeout(() => {
+            callback(payload);
+          }, 300); // 300msのデバウンス
+        } else {
+          // サーバーサイドの場合はそのまま実行
+          callback(payload);
+        }
+      },
     },
     storeId
   );
 };
+
+// TypeScriptの型定義拡張（window._tableUpdateTimeoutのため）
+declare global {
+  interface Window {
+    _tableUpdateTimeout: NodeJS.Timeout | undefined;
+  }
+}
+
+// 初期化
+if (typeof window !== 'undefined') {
+  window._tableUpdateTimeout = undefined;
+}
