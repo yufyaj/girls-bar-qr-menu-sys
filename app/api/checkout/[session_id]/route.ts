@@ -21,6 +21,7 @@ export async function POST(
         session_id,
         store_id,
         table_id,
+        start_at,
         charge_started_at,
         selected_cast_id,
         guest_count,
@@ -30,14 +31,13 @@ export async function POST(
           seat_types (
             seat_type_id,
             price_per_unit,
-            time_unit_minutes
+            time_unit_minutes,
+            display_name
           )
         )
       `)
       .eq('session_id', session_id)
       .single();
-
-
 
     if (sessionError || !session) {
       return NextResponse.json(
@@ -56,14 +56,13 @@ export async function POST(
           product_id,
           product_name,
           price,
-          quantity
+          quantity,
+          target_cast_id
         )
       `)
       .eq('session_id', session_id)
       .eq('status', 'new')
       .order('created_at', { ascending: true });
-
-
 
     if (ordersError) {
       console.error('注文取得エラー:', ordersError);
@@ -123,7 +122,13 @@ export async function POST(
 
     // 指名料を計算（新しいテーブルから複数の指名を取得）
     let nominationFee = 0;
-    let nominations = [];
+    let nominations: Array<{
+      nomination_id: string | null;
+      cast_id: string | null;
+      nomination_fee: number;
+      created_at: string;
+      display_name?: string;
+    }> = [];
 
     try {
       // session_cast_nominationsテーブルから指名情報を取得
@@ -387,10 +392,12 @@ export async function POST(
               .in('user_id', castIds);
 
             // キャスト名のマップを作成
-            const castNameMap = {};
+            const castNameMap: Record<string, string> = {};
             if (!castsError && castsData) {
               castsData.forEach(cast => {
-                castNameMap[cast.user_id] = cast.display_name || 'キャスト';
+                if (cast.user_id) {
+                  castNameMap[cast.user_id] = cast.display_name || 'キャスト';
+                }
               });
             }
 
@@ -406,7 +413,7 @@ export async function POST(
                 : 9000;
 
               // キャスト名を取得
-              const castName = castNameMap[nomination.cast_id] || nomination.display_name || "キャスト";
+              const castName = nomination.cast_id && castNameMap[nomination.cast_id] || nomination.display_name || "キャスト";
 
               details.push({
                 transactionDetailId: nominationDetailIdStr,
@@ -530,6 +537,220 @@ export async function POST(
       }
     }
 
+    // 会計履歴を保存（セッション削除前に履歴データを退避）
+    try {
+      console.log('会計履歴を保存します...');
+
+      // テーブル情報を取得
+      const { data: tableInfo, error: tableError } = await supabase
+        .from('tables')
+        .select(`
+          name,
+          seat_types (
+            display_name
+          )
+        `)
+        .eq('table_id', session.table_id)
+        .single();
+
+      if (tableError) {
+        console.error('テーブル情報取得エラー:', tableError);
+        // エラーがあっても処理は続行
+      }
+
+      // 滞在時間を計算（分単位）
+      const startTime = session.charge_started_at ? new Date(session.charge_started_at) : new Date(session.start_at || new Date());
+      const checkoutTime = new Date();
+      const stayMinutes = Math.floor((checkoutTime.getTime() - startTime.getTime()) / (1000 * 60));
+
+      // 会計履歴を保存
+      const { data: history, error: historyError } = await supabase
+        .from('checkout_history')
+        .insert({
+          checkout_id: checkout.checkout_id,
+          store_id: session.store_id,
+          table_id: session.table_id,
+          table_name: tableInfo?.name || '不明なテーブル',
+          seat_type_name: tableInfo?.seat_types?.[0]?.display_name || '不明な席種',
+          
+          // 金額情報
+          total_amount: totalAmount,
+          subtotal_amount: subtotalAmount,
+          charge_amount: chargeAmount || 0,
+          order_amount: orderAmount,
+          nomination_fee: nominationFee,
+          tax_amount: taxAmount,
+          tax_rate: taxRate,
+          
+          // セッション情報
+          session_start_at: session.start_at || new Date(),
+          charge_started_at: session.charge_started_at,
+          checkout_at: new Date(),
+          stay_minutes: stayMinutes,
+          guest_count: session.guest_count || 1,
+          
+          // 参照情報
+          smaregi_receipt_id: checkout.smaregi_receipt_id
+        })
+        .select()
+        .single();
+
+      if (historyError) {
+        console.error('会計履歴保存エラー:', historyError);
+        // エラーがあっても処理は続行
+      } else {
+        console.log('会計履歴を保存しました。history_id:', history.history_id);
+
+        // 注文明細を保存
+        if (orders && orders.length > 0) {
+          // すべての注文明細を取得
+          const allOrderItems = [];
+          for (const order of orders) {
+            if (order.order_items && order.order_items.length > 0) {
+              // 注文日時を取得
+              const { data: orderData } = await supabase
+                .from('orders')
+                .select('created_at')
+                .eq('order_id', order.order_id)
+                .single();
+                
+              const orderCreatedAt = orderData?.created_at || new Date().toISOString();
+              
+              for (const item of order.order_items) {
+                // 注文アイテムにtarget_cast_idが存在するか確認
+                const targetCastId = (item as any).target_cast_id || null;
+                
+                // デバッグログ: target_cast_idの値をチェック
+                console.log(`注文アイテム ${item.product_name} のtarget_cast_id: `, item.target_cast_id);
+                console.log('アイテムの完全な内容:', JSON.stringify(item, null, 2));
+                
+                // ターゲットキャスト情報を取得
+                let targetCastName = null;
+                if (targetCastId) {
+                  const { data: castData } = await supabase
+                    .from('store_users')
+                    .select('display_name')
+                    .eq('user_id', targetCastId)
+                    .eq('store_id', session.store_id)
+                    .single();
+                    
+                  targetCastName = castData?.display_name || null;
+                }
+                
+                allOrderItems.push({
+                  history_id: history.history_id,
+                  product_id: item.product_id,
+                  product_name: item.product_name,
+                  price: item.price,
+                  quantity: item.quantity,
+                  subtotal: item.price * item.quantity,
+                  target_cast_id: targetCastId,
+                  target_cast_name: targetCastName,
+                  ordered_at: orderCreatedAt
+                });
+              }
+            }
+          }
+          
+          // 注文明細を一括保存
+          if (allOrderItems.length > 0) {
+            try {
+              // 一度に保存するアイテム数が多すぎる場合はバッチ処理
+              const BATCH_SIZE = 50;
+              for (let i = 0; i < allOrderItems.length; i += BATCH_SIZE) {
+                const batch = allOrderItems.slice(i, i + BATCH_SIZE);
+                const { error: orderItemsError } = await supabase
+                  .from('checkout_order_items')
+                  .insert(batch);
+                  
+                if (orderItemsError) {
+                  console.error(`バッチ${i/BATCH_SIZE + 1}の注文明細保存エラー:`, orderItemsError);
+                  // エラーログを残すがバッチ処理は続行
+                }
+              }
+              console.log(`${allOrderItems.length}件の注文明細を保存しました`);
+              
+              // 特にキャストへの奢りデータが存在する場合の検証
+              const treatedItems = allOrderItems.filter(item => item.target_cast_id);
+              if (treatedItems.length > 0) {
+                console.log(`${treatedItems.length}件のキャスト奢りデータを保存しました`);
+                
+                // 保存されているか確認
+                const { data: savedItems, error: checkError } = await supabase
+                  .from('checkout_order_items')
+                  .select('item_id, target_cast_id, target_cast_name')
+                  .eq('history_id', history.history_id)
+                  .not('target_cast_id', 'is', null);
+                  
+                if (checkError) {
+                  console.error('キャスト奢りデータ確認エラー:', checkError);
+                } else {
+                  console.log(`確認: ${savedItems?.length || 0}件のキャスト奢りデータが保存されています`);
+                }
+              }
+            } catch (batchError) {
+              console.error('注文明細バッチ保存中にエラーが発生しました:', batchError);
+              // 一括保存に失敗した場合の1件ずつの保存（最終手段）
+              try {
+                for (const item of allOrderItems) {
+                  await supabase.from('checkout_order_items').insert([item]);
+                }
+                console.log('代替方法で注文明細を保存しました');
+              } catch (fallbackError) {
+                console.error('代替保存方法でもエラー:', fallbackError);
+              }
+            }
+          }
+        }
+        
+        // 指名情報を保存
+        if (nominations && nominations.length > 0) {
+          const nominationItems = [];
+          
+          for (const nomination of nominations) {
+            // キャスト名を取得
+            let castName = "不明なキャスト";
+            if (nomination.cast_id) {
+              const { data: castData } = await supabase
+                .from('store_users')
+                .select('display_name')
+                .eq('user_id', nomination.cast_id)
+                .eq('store_id', session.store_id)
+                .single();
+                
+              castName = castData?.display_name || nomination.display_name || "不明なキャスト";
+            } else if (nomination.display_name) {
+              castName = nomination.display_name;
+            }
+            
+            nominationItems.push({
+              history_id: history.history_id,
+              cast_id: nomination.cast_id,
+              cast_name: castName,
+              fee: nomination.nomination_fee
+            });
+          }
+          
+          // 指名情報を一括保存
+          if (nominationItems.length > 0) {
+            const { error: nominationsError } = await supabase
+              .from('checkout_nominations')
+              .insert(nominationItems);
+              
+            if (nominationsError) {
+              console.error('指名情報保存エラー:', nominationsError);
+              // エラーがあっても処理は続行
+            } else {
+              console.log(`${nominationItems.length}件の指名情報を保存しました`);
+            }
+          }
+        }
+      }
+    } catch (historyError) {
+      console.error('会計履歴保存中に例外が発生しました:', historyError);
+      // 履歴保存に失敗しても会計処理自体は完了させる
+    }
+
     // レスポンスデータを準備
     const responseData = {
       checkout_id: checkout.checkout_id,
@@ -544,7 +765,6 @@ export async function POST(
       status: 'completed',
       guest_count: session.guest_count || 1 // 人数情報を追加（デフォルトは1人）
     };
-
 
     return NextResponse.json(responseData);
   } catch (error) {
