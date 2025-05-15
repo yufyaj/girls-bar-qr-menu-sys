@@ -86,16 +86,20 @@ export async function GET(
       name: table.name,
       store_id: table.store_id,
       seat_type: seatType,
-      store: table.stores ? (
+      store: table && table.stores ? (
         Array.isArray(table.stores) ? (
           table.stores.length > 0 ? {
             store_id: table.stores[0].store_id,
             name: table.stores[0].name
           } : null
-        ) : {
-          store_id: table.stores.store_id,
-          name: table.stores.name
-        }
+        ) : (
+          table.stores && typeof table.stores === 'object' ? {
+            // @ts-ignore
+            store_id: table.stores.store_id,
+            // @ts-ignore
+            name: table.stores.name
+          } : null
+        )
       ) : null
     });
   } catch (error) {

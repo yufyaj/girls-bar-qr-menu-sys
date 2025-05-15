@@ -127,8 +127,10 @@ export async function GET(
       .single();
 
     let tableName = null;
-    if (!sessionError && orderWithSession && orderWithSession.sessions && orderWithSession.sessions.tables) {
-      tableName = orderWithSession.sessions.tables.name;
+    if (!sessionError && orderWithSession && orderWithSession.sessions && 
+        orderWithSession.sessions[0] && orderWithSession.sessions[0].tables && 
+        orderWithSession.sessions[0].tables[0]) {
+      tableName = orderWithSession.sessions[0].tables[0].name;
     }
 
     return NextResponse.json({

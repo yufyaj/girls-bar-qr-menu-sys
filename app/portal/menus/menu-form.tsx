@@ -300,7 +300,8 @@ export default function MenuForm({
       let imageUrl = formData.image_url;
       if (selectedImage.resizedBlob) {
         setIsUploading(true);
-        imageUrl = await uploadImage();
+        const uploadedImageUrl = await uploadImage();
+        imageUrl = uploadedImageUrl || ''; // nullの場合は空文字列を使用
         setIsUploading(false);
       }
 

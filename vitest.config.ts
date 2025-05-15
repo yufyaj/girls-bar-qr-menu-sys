@@ -3,11 +3,13 @@ import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 
 export default defineConfig({
+  // @ts-ignore - Vitestとプラグインの型定義不一致を無視
   plugins: [react()],
   test: {
     environment: 'node',
     globals: true,
-    include: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.test.tsx'],
+    include: ['**/*.test.{ts,tsx}'],
+    exclude: ['node_modules', '.next']
   },
   resolve: {
     alias: {

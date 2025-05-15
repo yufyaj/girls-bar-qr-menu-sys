@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
 import CastForm from '../../cast-form';
 
-export default async function EditCastPage({ params }: { params: { id: string } }) {
+export default async function EditCastPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const cookieStore = await cookies();
   const storeId = cookieStore.get('store-id')?.value;

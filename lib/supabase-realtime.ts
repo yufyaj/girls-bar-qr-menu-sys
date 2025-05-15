@@ -37,6 +37,7 @@ export enum RealtimeEvent {
 export interface SubscriptionOptions {
   event?: RealtimeEvent | '*';
   filter?: string;
+  table: string;
   callback: (payload: any) => void;
 }
 
@@ -53,20 +54,25 @@ export const subscribeToTable = (
     ? `realtime:${storeId}:${table}` 
     : `realtime:${table}`;
   
+  // オプションにテーブル名を設定
+  const subscriptionOptions = {
+    ...options,
+    table
+  };
+  
   // チャンネルを作成
   const channel = supabase
     .channel(channelName)
     .on(
+      // @ts-ignore - Supabase clientのバージョン不一致による型エラーを無視
       'postgres_changes',
       {
-        event: options.event || '*',
+        event: subscriptionOptions.event || '*',
         schema: 'public',
-        table: table,
-        filter: options.filter || undefined,
+        table,
+        filter: subscriptionOptions.filter || undefined
       },
-      (payload) => {
-        options.callback(payload);
-      }
+      (payload: any) => subscriptionOptions.callback(payload)
     )
     .subscribe();
   
@@ -87,6 +93,7 @@ export const subscribeToOrders = (
       event: '*',
       filter: `store_id=eq.${storeId}`,
       callback,
+      table: 'orders'
     },
     storeId
   );
@@ -102,6 +109,7 @@ export const subscribeToOrderItems = (
     {
       event: '*',
       callback,
+      table: 'order_items'
     },
     storeId
   );
@@ -118,6 +126,7 @@ export const subscribeToSessions = (
       event: '*',
       filter: `store_id=eq.${storeId}`,
       callback,
+      table: 'sessions'
     },
     storeId
   );
@@ -133,6 +142,7 @@ export const subscribeToTables = (
     {
       event: '*',
       filter: `store_id=eq.${storeId}`,
+      table: 'tables',
       callback: (payload: any) => {
         // デバウンス処理を追加して短時間に複数のイベントが発生した場合に対応
         if (typeof window !== 'undefined') {

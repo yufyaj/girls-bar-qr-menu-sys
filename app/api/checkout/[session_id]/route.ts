@@ -4,10 +4,10 @@ import { getSmaregiAccessToken, registerSmaregiTransaction } from '@/lib/smaregi
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { session_id: string } }
+  { params }: { params: Promise<{ session_id: string }> }
 ) {
   try {
-    const { session_id } = params;
+    const { session_id } = await params;
     const data = await request.json();
     const { table_id } = data;
 

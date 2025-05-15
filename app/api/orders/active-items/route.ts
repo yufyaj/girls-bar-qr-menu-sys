@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
             created_at: order.created_at,
             created_by_role: order.created_by_role,
             proxy: order.proxy,
-            table_name: order.sessions?.tables?.name || '不明なテーブル',
+            table_name: order.sessions?.[0]?.tables?.[0]?.name || '不明なテーブル',
             product_id: item.product_id,
             product_name: item.product_name,
             quantity: item.quantity,

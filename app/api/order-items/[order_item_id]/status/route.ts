@@ -45,6 +45,7 @@ export async function PATCH(
       .from('order_items')
       .select(`
         order_item_id,
+        status,
         orders (
           order_id,
           store_id
@@ -53,7 +54,7 @@ export async function PATCH(
       .eq('order_item_id', orderItemId)
       .single();
 
-    if (orderItemError || !orderItem || !orderItem.orders || orderItem.orders.store_id !== storeId) {
+    if (orderItemError || !orderItem || !orderItem.orders || orderItem.orders[0]?.store_id !== storeId) {
       return NextResponse.json(
         { error: '注文アイテムが見つからないか、アクセス権がありません' },
         { status: 404 }

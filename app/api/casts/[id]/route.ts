@@ -93,7 +93,7 @@ export async function GET(
       try {
         const { data: userData } = await supabase.auth.admin.getUserById(cast.user_id);
         if (userData && userData.user) {
-          cast.email = userData.user.email;
+          (cast as any).email = userData.user.email;
         }
       } catch (userError) {
         console.error('ユーザー情報取得エラー:', userError);
@@ -120,7 +120,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
@@ -271,7 +271,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;

@@ -34,7 +34,7 @@ export async function DELETE(
       .eq('order_item_id', orderItemId)
       .single();
 
-    if (orderItemError || !orderItem || !orderItem.orders || orderItem.orders.store_id !== storeId) {
+    if (orderItemError || !orderItem || !orderItem.orders || orderItem.orders[0]?.store_id !== storeId) {
       return NextResponse.json(
         { error: '注文アイテムが見つからないか、アクセス権がありません' },
         { status: 404 }

@@ -109,7 +109,7 @@ export async function POST(
     }
 
     // 席種が変わる場合の処理
-    const sourceTableSeatTypeId = sourceSession.tables?.seat_type_id;
+    const sourceTableSeatTypeId = sourceSession.tables?.[0]?.seat_type_id;
     const targetTableSeatTypeId = targetTable.seat_type_id;
 
     // 現在時刻を取得
@@ -213,7 +213,7 @@ export async function POST(
     }
 
     // 移動先テーブルの席種情報を取得
-    const targetSeatPrice = targetTable.seat_types?.price_per_unit || 0;
+    const targetSeatPrice = targetTable.seat_types?.[0]?.price_per_unit || 0;
 
     // 現在時刻から1ミリ秒前の時刻を計算（移動元テーブルの料金記録用）
     const moveChargeTime = new Date(now.getTime() - 1);
