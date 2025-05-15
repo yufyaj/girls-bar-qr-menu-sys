@@ -50,34 +50,114 @@ export const createServerComponentClient = async () => {
   );
 };
 
-// ミドルウェアでセッションを更新する関数
-export const updateSession = async (request: NextRequest) => {
-  // 空のレスポンスを先に用意
-  const response = NextResponse.next({
-    request: { headers: request.headers },
-  });
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+// ミドルウェア用のクライアント
+export const createMiddlewareClient = (request: NextRequest, response: NextResponse) => {
+  return createServerClient(
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY,
     {
       cookies: {
-        // 1. 受信した Cookie はそのまま返す
         getAll() {
           return request.cookies.getAll();
         },
-        // 2. 新しい Cookie は「レスポンス」側だけに書き込む（ここがポイント）
-        setAll(cookies) {
-          cookies.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
-          );
+        setAll(cookiesToSet) {
+          // リクエストCookieを設定（Next.jsのミドルウェア用）
+          cookiesToSet.forEach(({ name, value }) => {
+            request.cookies.set({
+              name,
+              value,
+            });
+          });
+
+          // レスポンスCookieを設定（ブラウザ用）
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set({
+              name,
+              value,
+              ...options,
+            });
+          });
         },
       },
-    },
+    }
   );
+};
 
-  // 必ず getUser() でセッションを再検証（トークン自動リフレッシュ）
-  await supabase.auth.getUser();
+// ミドルウェアでセッションを更新する関数
+export async function updateSession(request: NextRequest) {
+  // レスポンスを作成
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
+
+  // ミドルウェアクライアントを作成
+  const supabase = createMiddlewareClient(request, response);
+
+  try {
+    // getUser()を直接使用して認証を確認（セキュリティ上の理由からgetSession()は使用しない）
+    const { data: { user }, error } = await supabase.auth.getUser();
+
+    if (error) {
+      console.error('Middleware: 認証エラー:', error);
+      // エラーがあっても処理を続行（リダイレクト判定のため）
+    }
+
+    // ポータルへのアクセスは認証が必要
+    if (request.nextUrl.pathname.startsWith('/portal')) {
+      if (!user) {
+        // 店舗IDの取得
+        const storeId = request.cookies.get('store-id')?.value;
+        
+        if (storeId) {
+          // 店舗IDからstore_codeを取得するための準備
+          const supabaseAdmin = createClient(
+            SUPABASE_URL,
+            SUPABASE_SERVICE_KEY || '',
+            {
+              auth: {
+                autoRefreshToken: false,
+                persistSession: false,
+              },
+            }
+          );
+          
+          try {
+            // 店舗情報を取得してstore_codeを特定
+            const { data: store, error: storeError } = await supabaseAdmin
+              .from('stores')
+              .select('store_code')
+              .eq('store_id', storeId)
+              .single();
+              
+            if (store && store.store_code) {
+              // 店舗コードが特定できた場合は、そのログイン画面にリダイレクト
+              console.log(`Middleware: 認証切れ - 店舗コード ${store.store_code} のログイン画面にリダイレクト`);
+              return NextResponse.redirect(new URL(`/login/${store.store_code}`, request.url));
+            }
+          } catch (storeError) {
+            console.error('Middleware: 店舗情報取得エラー:', storeError);
+          }
+        }
+        
+        // 店舗情報が取得できない場合はトップページにリダイレクト
+        return NextResponse.redirect(new URL('/', request.url));
+      }
+
+      // 店舗IDの取得
+      const storeId = request.cookies.get('store-id')?.value;
+
+      if (!storeId) {
+        // 店舗IDがない場合はログアウト
+        await supabase.auth.signOut();
+        return NextResponse.redirect(new URL('/', request.url));
+      }
+    }
+  } catch (error) {
+    console.error('Middleware: 予期せぬエラー:', error);
+    // エラーが発生した場合でも処理を続行
+  }
 
   return response;
-};
+}

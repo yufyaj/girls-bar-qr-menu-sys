@@ -9,13 +9,30 @@ export async function POST(request: NextRequest) {
   try {
     // Cookieベースのクライアント
     const authClient = await createServerComponentClient();
+    const cookieStore = await cookies();
+    
+    // 店舗IDを取得してから店舗コードを取得
+    const storeId = cookieStore.get('store-id')?.value;
+    let storeCode = null;
+    
+    if (storeId) {
+      // データベースから店舗コードを取得
+      const supabase = await createServerSupabaseClient();
+      const { data: store, error: storeError } = await supabase
+        .from('stores')
+        .select('store_code')
+        .eq('store_id', storeId)
+        .single();
+        
+      if (store && !storeError) {
+        storeCode = store.store_code;
+      }
+    }
 
     // ログアウト処理
     await authClient.auth.signOut();
 
     // Cookieの削除
-    const cookieStore = await cookies();
-
     const allCookies = cookieStore.getAll();
 
     // すべての関連Cookieを削除
@@ -23,9 +40,12 @@ export async function POST(request: NextRequest) {
     cookieStore.delete(supabaseAuthCookie);
     cookieStore.delete('store-id');
 
+    // 店舗コードが特定できれば、その店舗のログイン画面にリダイレクト
+    if (storeCode) {
+      return NextResponse.redirect(new URL(`/login/${storeCode}`, request.url));
+    }
 
-
-    // ホームページにリダイレクト
+    // 店舗コードが特定できなければトップページにリダイレクト
     return NextResponse.redirect(new URL('/', request.url));
 
   } catch (error) {
