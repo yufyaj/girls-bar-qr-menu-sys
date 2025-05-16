@@ -135,7 +135,8 @@ export default function OrderBoardClient({ initialOrderItems, storeId }: OrderBo
       const formData = new FormData();
       formData.append('status', newStatus);
 
-      const response = await fetch(`/api/order-items/${orderItemId}/status`, {
+      // 常に/api/order-items/${orderItemId}パスを使用
+      const response = await fetch(`/api/order-items/${orderItemId}`, {
         method: 'PATCH',
         body: formData
       });
