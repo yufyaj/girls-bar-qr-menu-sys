@@ -34,10 +34,32 @@ export async function DELETE(
       .eq('order_item_id', orderItemId)
       .single();
 
-    if (orderItemError || !orderItem || !orderItem.orders || orderItem.orders[0]?.store_id !== storeId) {
+    if (orderItemError) {
+      console.error('注文アイテム取得エラー:', orderItemError);
       return NextResponse.json(
-        { error: '注文アイテムが見つからないか、アクセス権がありません' },
+        { error: '注文アイテムが見つかりません' },
         { status: 404 }
+      );
+    }
+
+    if (!orderItem || !orderItem.orders) {
+      console.error('注文アイテムにorders情報がありません:', orderItem);
+      return NextResponse.json(
+        { error: '注文アイテムに関連する注文情報が見つかりません' },
+        { status: 404 }
+      );
+    }
+    
+    // ordersが配列かオブジェクトかを確認して適切にstore_idを取得
+    const orderStoreId = Array.isArray(orderItem.orders) 
+      ? orderItem.orders[0]?.store_id 
+      : (orderItem.orders as any).store_id;
+      
+    if (orderStoreId !== storeId) {
+      console.error('店舗IDの不一致:', { orderStoreId, requestStoreId: storeId });
+      return NextResponse.json(
+        { error: 'この注文アイテムへのアクセス権がありません' },
+        { status: 403 }
       );
     }
 
@@ -130,10 +152,32 @@ export async function PATCH(
       .eq('order_item_id', orderItemId)
       .single();
 
-    if (orderItemError || !orderItem || !orderItem.orders || orderItem.orders[0]?.store_id !== storeId) {
+    if (orderItemError) {
+      console.error('注文アイテム取得エラー:', orderItemError);
       return NextResponse.json(
-        { error: '注文アイテムが見つからないか、アクセス権がありません' },
+        { error: '注文アイテムが見つかりません' },
         { status: 404 }
+      );
+    }
+
+    if (!orderItem || !orderItem.orders) {
+      console.error('注文アイテムにorders情報がありません:', orderItem);
+      return NextResponse.json(
+        { error: '注文アイテムに関連する注文情報が見つかりません' },
+        { status: 404 }
+      );
+    }
+    
+    // ordersが配列かオブジェクトかを確認して適切にstore_idを取得
+    const orderStoreId = Array.isArray(orderItem.orders) 
+      ? orderItem.orders[0]?.store_id 
+      : (orderItem.orders as any).store_id;
+      
+    if (orderStoreId !== storeId) {
+      console.error('店舗IDの不一致:', { orderStoreId, requestStoreId: storeId });
+      return NextResponse.json(
+        { error: 'この注文アイテムへのアクセス権がありません' },
+        { status: 403 }
       );
     }
 

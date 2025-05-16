@@ -135,29 +135,57 @@ export default function OrderBoardClient({ initialOrderItems, storeId }: OrderBo
       const formData = new FormData();
       formData.append('status', newStatus);
 
-      // 常に/api/order-items/${orderItemId}パスを使用
       const response = await fetch(`/api/order-items/${orderItemId}`, {
         method: 'PATCH',
-        body: formData
+        body: formData,
+        // キャッシュをバイパスするヘッダーを追加
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('注文アイテムのステータス更新に失敗しました', errorData);
-        // 更新に失敗した場合は最新データを取得
-        const updatedResponse = await fetch('/api/orders/active-items');
+        console.error(`注文アイテムのステータス更新に失敗しました [${response.status}]`, errorData);
+        
+        // 最新データを取得して状態を更新
+        console.log('エラー発生後の最新データを取得中...');
+        const updatedResponse = await fetch('/api/orders/active-items', {
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        });
+        
         if (updatedResponse.ok) {
           const data = await updatedResponse.json();
           setOrderItems(data);
+        } else {
+          console.error('注文データの再取得に失敗しました:', await updatedResponse.text());
         }
       }
     } catch (error) {
       console.error('注文アイテムステータス更新エラー:', error);
+      
       // エラーが発生した場合も最新データを取得
-      const updatedResponse = await fetch('/api/orders/active-items');
-      if (updatedResponse.ok) {
-        const data = await updatedResponse.json();
-        setOrderItems(data);
+      try {
+        console.log('エラー発生後の最新データを取得中...');
+        const updatedResponse = await fetch('/api/orders/active-items', {
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        });
+        
+        if (updatedResponse.ok) {
+          const data = await updatedResponse.json();
+          setOrderItems(data);
+        } else {
+          console.error('注文データの再取得に失敗しました:', await updatedResponse.text());
+        }
+      } catch (fetchError) {
+        console.error('最新データの取得中にエラーが発生しました:', fetchError);
       }
     }
   };
