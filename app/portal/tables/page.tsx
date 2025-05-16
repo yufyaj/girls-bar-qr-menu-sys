@@ -40,7 +40,7 @@ interface TableWithDetails extends Table {
 
 // QRコード生成関数
 async function generateQRCode(tableId: string): Promise<string> {
-  const url = `${process.env.PUBLIC_URL || 'http://localhost:3000'}/menu/${tableId}`;
+  const url = `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/menu/${tableId}`;
   return await QRCode.toDataURL(url);
 }
 

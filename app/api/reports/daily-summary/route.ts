@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient, createServerComponentClient } from '@/lib/supabase';
+import { cookies } from 'next/headers';
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,12 +25,26 @@ export async function GET(request: NextRequest) {
     // データベース操作用クライアント
     const supabase = await createServerSupabaseClient();
 
-    // ユーザーの店舗情報を取得
+    // Cookieからログイン中の店舗IDを取得
+    const cookieStore = await cookies();
+    const activeStoreId = cookieStore.get('store-id')?.value;
+
+    if (!activeStoreId) {
+      return NextResponse.json(
+        { error: 'ログイン中の店舗情報が見つかりません' },
+        { status: 404 }
+      );
+    }
+
+    // ユーザーの店舗情報を取得（ログイン中の店舗IDも条件に追加）
     const { data: storeUser, error: storeUserError } = await supabase
       .from('store_users')
       .select('store_id')
       .eq('user_id', user.id)
+      .eq('store_id', activeStoreId)
       .single();
+
+      console.log(storeUserError);
 
     if (storeUserError || !storeUser) {
       return NextResponse.json(

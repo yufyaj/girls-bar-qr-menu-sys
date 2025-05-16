@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient, createServerComponentClient } from '@/lib/supabase';
+import { cookies } from 'next/headers';
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,11 +27,23 @@ export async function GET(request: NextRequest) {
     // データベース操作用クライアント
     const supabase = await createServerSupabaseClient();
 
-    // ユーザーの店舗情報を取得
+    // Cookieからログイン中の店舗IDを取得
+    const cookieStore = await cookies();
+    const activeStoreId = cookieStore.get('store-id')?.value;
+
+    if (!activeStoreId) {
+      return NextResponse.json(
+        { error: 'ログイン中の店舗情報が見つかりません' },
+        { status: 404 }
+      );
+    }
+
+    // ユーザーの店舗情報を取得（ログイン中の店舗IDも条件に追加）
     const { data: storeUser, error: storeUserError } = await supabase
       .from('store_users')
       .select('store_id')
       .eq('user_id', user.id)
+      .eq('store_id', activeStoreId)
       .single();
 
     if (storeUserError || !storeUser) {
@@ -75,8 +88,8 @@ export async function GET(request: NextRequest) {
     // 日付フィルタの適用
     if (date) {
       // 指定日の00:00:00から23:59:59まで
-      query = query.gte('checkout_at', `${date}T00:00:00`)
-        .lte('checkout_at', `${date}T23:59:59`);
+      query = query.gte('checkout_at', `${date}T00:00:00+09:00`)
+        .lte('checkout_at', `${date}T23:59:59+09:00`);
     }
 
     // データ取得
@@ -136,11 +149,13 @@ export async function GET(request: NextRequest) {
     // データを時間帯に割り当て
     data.forEach(record => {
       // 日本時間で日時を取得
-      const checkoutTime = new Date(record.checkout_at);
-      const jpTime = new Date(checkoutTime.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }));
+      const utcDate = new Date(record.checkout_at);
+      // UTCタイムスタンプに9時間（日本時間との差）を加算
+      const jpTimestamp = utcDate.getTime() + (9 * 60 * 60 * 1000);
+      const jpDate = new Date(jpTimestamp);
       
-      const hour = jpTime.getHours();
-      const minute = jpTime.getMinutes();
+      const hour = jpDate.getUTCHours(); // UTCの時間を取得（ローカルタイムゾーンの影響を受けない）
+      const minute = jpDate.getUTCMinutes();
       
       // スロットキーを生成
       let timeSlot = '';

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase';
+import { getUserRoleInStore } from '@/lib/auth';
 
 // 共通の設定
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -53,6 +54,21 @@ export async function POST(request: NextRequest) {
         JSON.stringify({ error: 'ログインに失敗しました。メールアドレスとパスワードを確認してください' }),
         {
           status: 401,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+    }
+
+    // ユーザーが店舗に所属しているか確認
+    const userRole = await getUserRoleInStore(authData.user.id, store.store_id);
+    
+    if (!userRole) {
+      return new NextResponse(
+        JSON.stringify({ error: 'この店舗にアクセスする権限がありません' }),
+        {
+          status: 403,
           headers: {
             'Content-Type': 'application/json',
           },

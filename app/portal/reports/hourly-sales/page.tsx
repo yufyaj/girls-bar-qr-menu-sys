@@ -10,17 +10,10 @@ interface HourlySales {
   nomination_count: number;
 }
 
-interface Store {
-  store_id: string;
-  name: string;
-}
-
 export default function HourlySalesReport() {
   // 状態管理
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [stores, setStores] = useState<Store[]>([]);
-  const [selectedStore, setSelectedStore] = useState<string>('');
   const [date, setDate] = useState<string>('');
   const [intervalMinutes, setIntervalMinutes] = useState<string>('60');
   const [startHour, setStartHour] = useState<string>('0');
@@ -28,43 +21,24 @@ export default function HourlySalesReport() {
   const [reportData, setReportData] = useState<HourlySales[]>([]);
   const [summary, setSummary] = useState<any>(null);
 
-  // 店舗リストを取得
+  // 初期値設定
   useEffect(() => {
-    const fetchStores = async () => {
-      try {
-        setIsLoading(true);
-        // APIから店舗情報を取得
-        const response = await fetch('/api/stores');
-        
-        if (!response.ok) {
-          throw new Error('店舗情報の取得に失敗しました');
-        }
-        
-        const data = await response.json();
-        setStores(data || []);
-
-        // 最初の店舗を選択
-        if (data && data.length > 0 && !selectedStore) {
-          setSelectedStore(data[0].store_id);
-        }
-      } catch (error) {
-        console.error('店舗情報取得エラー:', error);
-        setError('店舗情報の取得に失敗しました');
-      } finally {
-        setIsLoading(false);
-      }
+    // 今日の日付
+    const today = new Date();
+    // YYYY-MM-DD形式に変換
+    const formatDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
     };
 
-    fetchStores();
+    const formattedDate = formatDate(today);
+    setDate(formattedDate);
   }, []);
 
   // レポートデータを取得
   const fetchReportData = async () => {
-    if (!selectedStore) {
-      setError('店舗を選択してください');
-      return;
-    }
-
     if (!date) {
       setError('日付を選択してください');
       return;
@@ -76,7 +50,6 @@ export default function HourlySalesReport() {
     try {
       // URLクエリパラメータを構築
       const params = new URLSearchParams();
-      params.append('store_id', selectedStore);
       params.append('date', date);
       params.append('interval', intervalMinutes);
       params.append('start_hour', startHour);
@@ -101,27 +74,12 @@ export default function HourlySalesReport() {
     }
   };
 
-  // 初期値設定
+  // 日付が設定されたらレポートを自動取得
   useEffect(() => {
-    // 今日の日付
-    const today = new Date();
-    // YYYY-MM-DD形式に変換
-    const formatDate = (date: Date) => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
-
-    setDate(formatDate(today));
-  }, []);
-
-  // 店舗が選択されたら自動的にレポートを取得
-  useEffect(() => {
-    if (selectedStore && date) {
+    if (date) {
       fetchReportData();
     }
-  }, [selectedStore]);
+  }, [date, intervalMinutes, startHour, endHour]);
 
   // 日本円表示用のフォーマッタ
   const formatCurrency = (amount: number) => {
@@ -143,22 +101,6 @@ export default function HourlySalesReport() {
             <h2 className="text-xl font-semibold mb-4">検索条件</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">店舗</label>
-                <select
-                  className="w-full p-2 border border-gray-300 rounded"
-                  value={selectedStore}
-                  onChange={(e) => setSelectedStore(e.target.value)}
-                >
-                  <option value="">店舗を選択</option>
-                  {stores.map((store) => (
-                    <option key={store.store_id} value={store.store_id}>
-                      {store.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">日付</label>
                 <input

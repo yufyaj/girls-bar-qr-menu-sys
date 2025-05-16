@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient, createServerComponentClient } from '@/lib/supabase';
+import { cookies } from 'next/headers';
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,11 +25,23 @@ export async function GET(request: NextRequest) {
     // データベース操作用クライアント
     const supabase = await createServerSupabaseClient();
 
-    // ユーザーの店舗情報を取得
+    // Cookieからログイン中の店舗IDを取得
+    const cookieStore = await cookies();
+    const activeStoreId = cookieStore.get('store-id')?.value;
+
+    if (!activeStoreId) {
+      return NextResponse.json(
+        { error: 'ログイン中の店舗情報が見つかりません' },
+        { status: 404 }
+      );
+    }
+
+    // ユーザーの店舗情報を取得（ログイン中の店舗IDも条件に追加）
     const { data: storeUser, error: storeUserError } = await supabase
       .from('store_users')
       .select('store_id')
       .eq('user_id', user.id)
+      .eq('store_id', activeStoreId)
       .single();
 
     if (storeUserError || !storeUser) {
@@ -101,11 +114,12 @@ export async function GET(request: NextRequest) {
     let drinksQuery = supabase
       .from('checkout_order_items')
       .select('history_id, product_id, product_name, price, quantity, subtotal, target_cast_id, target_cast_name')
-      .in('history_id', historyIds);
+      .in('history_id', historyIds)
+      .not('target_cast_id', 'is', null); // キャストへの奢りドリンクのみを対象とする
     
     // クエリデバッグ情報
     console.log('会計履歴ID:', historyIds);
-    console.log('奢りドリンク取得クエリ:', '会計履歴IDで検索');
+    console.log('奢りドリンク取得クエリ:', '会計履歴IDで検索、target_cast_idがnullでないものに限定');
     
     // 特定のキャストでフィルタリング
     if (castId) {
@@ -125,7 +139,7 @@ export async function GET(request: NextRequest) {
     }
     
     // デバッグ - 取得結果
-    console.log('全注文アイテム取得結果数:', drinksData?.length || 0);
+    console.log('キャスト向け奢りドリンク取得結果数:', drinksData?.length || 0);
     
     // キャスト情報を取得
     const { data: castsData, error: castsError } = await supabase
@@ -159,28 +173,21 @@ export async function GET(request: NextRequest) {
       total_sales: number;
     }
     
-    // target_cast_idが設定されていないアイテムにはデフォルトキャストIDを使用
-    const DEFAULT_CAST_ID = "customer";
-    const DEFAULT_CAST_NAME = "自分で注文";
-    
     // キャスト別・商品別のグループ化のキーを作成
-    const groupByKey = (item: any) => `${item.target_cast_id || DEFAULT_CAST_ID}:${item.product_id}`;
+    const groupByKey = (item: any) => `${item.target_cast_id}:${item.product_id}`;
     
     const drinkSummaryMap: Record<string, DrinkSummary> = {};
     
     // 奢りドリンク情報を集計
     drinksData.forEach(drink => {
+      // ここでは全てのdrinkはtarget_cast_idが存在することが保証されています
       const key = groupByKey(drink);
       
       if (!drinkSummaryMap[key]) {
-        // target_cast_idがない場合はデフォルト値を使用
-        const castId = drink.target_cast_id || DEFAULT_CAST_ID;
-        const castName = drink.target_cast_id 
-          ? (drink.target_cast_name || castNameMap[drink.target_cast_id] || 'キャスト')
-          : DEFAULT_CAST_NAME;
+        const castName = drink.target_cast_name || castNameMap[drink.target_cast_id] || 'キャスト';
         
         drinkSummaryMap[key] = {
-          cast_id: castId,
+          cast_id: drink.target_cast_id,
           cast_name: castName,
           product_id: drink.product_id,
           product_name: drink.product_name,
