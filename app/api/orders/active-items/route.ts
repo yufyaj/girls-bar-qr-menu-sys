@@ -42,8 +42,10 @@ export async function GET(request: NextRequest) {
         created_by_role,
         proxy,
         created_at,
+        session_id,
         sessions (
           session_id,
+          table_id,
           tables (
             table_id,
             name
@@ -70,6 +72,48 @@ export async function GET(request: NextRequest) {
         { error: '注文情報の取得に失敗しました' },
         { status: 500 }
       );
+    }
+
+    // セッションIDに関連付けられたテーブル情報を取得
+    const sessionIds = orders
+      .filter(order => order.session_id)
+      .map(order => order.session_id);
+
+    // セッションIDとテーブル名のマッピングを作成
+    const sessionTableMap: Record<string, string> = {};
+    
+    if (sessionIds.length > 0) {
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('sessions')
+        .select(`
+          session_id,
+          table_id,
+          tables (
+            table_id,
+            name
+          )
+        `)
+        .in('session_id', sessionIds);
+        
+      if (!sessionError && sessionData) {
+        sessionData.forEach(session => {
+          if (session.tables && typeof session.tables === 'object') {
+            // タイプチェック: tablesが配列またはオブジェクトの場合を処理
+            if (Array.isArray(session.tables)) {
+              // 配列の場合は最初の要素を使用
+              if (session.tables.length > 0 && session.tables[0].name) {
+                sessionTableMap[session.session_id] = session.tables[0].name;
+              }
+            } else {
+              // オブジェクトの場合は直接nameプロパティにアクセス
+              // @ts-ignore - Supabaseの型推論の限界に対処
+              sessionTableMap[session.session_id] = session.tables.name || '不明なテーブル';
+            }
+          }
+        });
+      } else {
+        console.error('セッション情報取得エラー:', sessionError);
+      }
     }
 
     // ターゲットキャストの情報を取得
@@ -114,6 +158,34 @@ export async function GET(request: NextRequest) {
         return [];
       }
 
+      // テーブル名を取得するロジックを改善
+      let tableName = '不明なテーブル';
+      
+      // 方法1: sessionsのネスト検索結果からテーブル名を取得
+      if (order.sessions && 
+          Array.isArray(order.sessions) && 
+          order.sessions.length > 0 && 
+          order.sessions[0].tables) {
+        if (Array.isArray(order.sessions[0].tables)) {
+          if (order.sessions[0].tables.length > 0 && order.sessions[0].tables[0].name) {
+            tableName = order.sessions[0].tables[0].name;
+          }
+        } else if (typeof order.sessions[0].tables === 'object') {
+          // @ts-ignore - Supabaseの型推論の限界に対処
+          tableName = order.sessions[0].tables.name || tableName;
+        }
+      }
+      
+      // 方法2: セッションマップから取得（バックアップ）
+      if (tableName === '不明なテーブル' && order.session_id && sessionTableMap[order.session_id]) {
+        tableName = sessionTableMap[order.session_id];
+      }
+      
+      // テーブル情報が見つからない場合、IDを含めたフォールバック
+      if (tableName === '不明なテーブル' && order.session_id) {
+        tableName = `不明なテーブル (${order.session_id.substring(0, 4)})`;
+      }
+
       // すべての注文アイテムを処理
       return order.order_items
         .map(item => {
@@ -125,7 +197,7 @@ export async function GET(request: NextRequest) {
             created_at: order.created_at,
             created_by_role: order.created_by_role,
             proxy: order.proxy,
-            table_name: order.sessions?.[0]?.tables?.[0]?.name || '不明なテーブル',
+            table_name: tableName,
             product_id: item.product_id,
             product_name: item.product_name,
             quantity: item.quantity,
