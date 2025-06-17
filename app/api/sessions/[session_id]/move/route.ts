@@ -173,43 +173,47 @@ export async function POST(
       // 人数を取得（デフォルトは1人）
       const guestCount = sourceSession.guest_count || 1;
 
-      // 0分時点での移動の場合は特別処理
-      if (elapsedMinutes < 1) {
-        // 0分時点での移動の場合、最低料金を適用（1単位分）
-        partialUnitCharge = lastEvent.price_snapshot * guestCount;
-        currentTableCharge = partialUnitCharge;
-        console.log('0分時点での移動: 最低料金を適用', currentTableCharge);
-      } else {
-        // 通常の計算（1分以上経過している場合）
-
-        // 完全に経過した時間単位を計算
-        const fullUnits = Math.floor(elapsedMinutes / timeUnitMinutes);
-
-        // 完全に経過した時間単位分の料金（人数分）
-        fullUnitCharge = fullUnits * lastEvent.price_snapshot * guestCount;
-
-        // 残りの未達成分の時間（分）
-        const remainingMinutes = elapsedMinutes - (fullUnits * timeUnitMinutes);
-
-        // 未達成分があれば料金を計算（人数分）
-        if (remainingMinutes > 0) {
-          partialUnitCharge = lastEvent.price_snapshot * guestCount;
+        // 料金計算に使用する単価を決定
+        // lastEvent.price_snapshotが0の場合は、席種から直接料金を取得
+        let effectivePrice = lastEvent.price_snapshot;
+        if (effectivePrice === 0) {
+          const { data: currentSeatType, error: currentSeatTypeError } = await supabase
+            .from('seat_types')
+            .select('price_per_unit')
+            .eq('seat_type_id', lastEvent.seat_type_id)
+            .single();
+          
+          if (!currentSeatTypeError && currentSeatType) {
+            effectivePrice = currentSeatType.price_per_unit;
+          }
         }
 
-        // 合計料金（計算結果表示用）
-        currentTableCharge = fullUnitCharge + partialUnitCharge;
 
-        console.log('席移動料金計算:', {
-          elapsedMinutes,
-          timeUnitMinutes,
-          fullUnits,
-          fullUnitCharge,
-          remainingMinutes,
-          partialUnitCharge,
-          guestCount,
-          currentTableCharge
-        });
-      }
+        // 0分時点での移動の場合は特別処理
+        if (elapsedMinutes < 1) {
+          // 0分時点での移動の場合、最低料金を適用（1単位分）
+          partialUnitCharge = effectivePrice * guestCount;
+          currentTableCharge = partialUnitCharge;
+        } else {
+          // 通常の計算（1分以上経過している場合）
+
+          // 完全に経過した時間単位を計算
+          const fullUnits = Math.floor(elapsedMinutes / timeUnitMinutes);
+
+          // 完全に経過した時間単位分の料金（人数分）
+          fullUnitCharge = fullUnits * effectivePrice * guestCount;
+
+          // 残りの未達成分の時間（分）
+          const remainingMinutes = elapsedMinutes - (fullUnits * timeUnitMinutes);
+
+          // 未達成分があれば料金を計算（人数分）
+          if (remainingMinutes > 0) {
+            partialUnitCharge = effectivePrice * guestCount;
+          }
+
+          // 合計料金（計算結果表示用）
+          currentTableCharge = fullUnitCharge + partialUnitCharge;
+        }
     }
 
     // 移動先テーブルの席種情報を取得
@@ -273,12 +277,14 @@ export async function POST(
 
     // 新しいsession_seat_eventを作成（席種が変わる場合も変わらない場合も）
     // 必ず移動元テーブルの料金記録の後に作成する
+    // 移動先テーブルの席種情報を正しく取得
+    const finalTargetSeatPrice = targetTable.seat_types?.[0]?.price_per_unit || 0;    
     const { error: eventError } = await supabase
       .from('session_seat_events')
       .insert({
         session_id: session_id,
         seat_type_id: targetTableSeatTypeId, // 移動先の席種ID
-        price_snapshot: targetSeatPrice, // 移動先テーブルの席種の料金
+        price_snapshot: finalTargetSeatPrice, // 移動先テーブルの席種の料金（正しい値を使用）
         changed_at: now.toISOString(), // 現在時刻を設定
         is_table_move_charge: false // 通常のイベントとして記録
       });

@@ -77,7 +77,6 @@ export default function TableMoveButton({
       clearTimeout(timeoutId); // タイムアウトをクリア
 
       const result = await response.json();
-      console.log('席移動料金計算応答:', result);
 
       if (!response.ok) {
         throw new Error(result.error || '席移動料金の計算に失敗しました');
@@ -91,7 +90,9 @@ export default function TableMoveButton({
       setGuestCount(result.guest_count || 1);
 
       // 料金が発生する場合は確認ダイアログを表示
-      if (result.previous_charge > 0) {
+      // 完全経過分または未達成分のいずれかに料金がある場合にダイアログを表示
+      const shouldShowDialog = (result.full_unit_charge || 0) > 0 || (result.partial_unit_charge || 0) > 0;
+      if (shouldShowDialog) {
         setIsConfirmModalOpen(true);
       } else {
         // 料金が発生しない場合は直接移動処理を実行
