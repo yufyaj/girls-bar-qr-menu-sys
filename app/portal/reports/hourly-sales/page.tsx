@@ -74,6 +74,56 @@ export default function HourlySalesReport() {
     }
   };
 
+  // CSVエクスポート機能
+  const exportToCsv = async () => {
+    if (!date) {
+      setError('日付を選択してください');
+      return;
+    }
+
+    try {
+      // URLクエリパラメータを構築
+      const params = new URLSearchParams();
+      params.append('date', date);
+      params.append('interval', intervalMinutes);
+      params.append('start_hour', startHour);
+      params.append('end_hour', endHour);
+
+      // CSVエクスポートAPIを呼び出し
+      const response = await fetch(`/api/reports/hourly-sales/export?${params.toString()}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'CSVエクスポートに失敗しました');
+      }
+
+      // ファイルをダウンロード
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      
+      // ファイル名を取得（レスポンスヘッダーから）
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = 'hourly_sales.csv';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+      
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('CSVエクスポートエラー:', error);
+      setError(error instanceof Error ? error.message : 'CSVエクスポートに失敗しました');
+    }
+  };
+
   // 日付が設定されたらレポートを自動取得
   useEffect(() => {
     if (date) {
@@ -151,7 +201,14 @@ export default function HourlySalesReport() {
               </div>
             </div>
             
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              <button
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors disabled:bg-gray-400"
+                onClick={exportToCsv}
+                disabled={isLoading || reportData.length === 0 || !date}
+              >
+                CSVエクスポート
+              </button>
               <button
                 className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
                 onClick={fetchReportData}
@@ -225,4 +282,4 @@ export default function HourlySalesReport() {
       </div>
     </div>
   );
-} 
+}

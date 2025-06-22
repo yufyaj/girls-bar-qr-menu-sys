@@ -93,6 +93,59 @@ export default function DailySummaryReport() {
     }
   };
 
+  // CSVエクスポート機能
+  const exportToCsv = async () => {
+    try {
+      // URLクエリパラメータを構築
+      const params = new URLSearchParams();
+      
+      if (startDate) {
+        params.append('start_date', startDate);
+      }
+      
+      if (endDate) {
+        params.append('end_date', endDate);
+      }
+      
+      if (selectedSeatType) {
+        params.append('seat_type', selectedSeatType);
+      }
+
+      // CSVエクスポートAPIを呼び出し
+      const response = await fetch(`/api/reports/daily-summary/export?${params.toString()}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'CSVエクスポートに失敗しました');
+      }
+
+      // ファイルをダウンロード
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      
+      // ファイル名を取得（レスポンスヘッダーから）
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = 'daily_summary.csv';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+      
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('CSVエクスポートエラー:', error);
+      setError(error instanceof Error ? error.message : 'CSVエクスポートに失敗しました');
+    }
+  };
+
   // 初期値設定
   useEffect(() => {
     // 今日の日付
@@ -180,7 +233,14 @@ export default function DailySummaryReport() {
               </div>
             </div>
             
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              <button
+                className="bg-green-600 text-white px-3 sm:px-4 py-2 rounded text-sm hover:bg-green-700 transition-colors disabled:bg-gray-400"
+                onClick={exportToCsv}
+                disabled={isLoading || reportData.length === 0}
+              >
+                CSVエクスポート
+              </button>
               <button
                 className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded text-sm hover:bg-blue-700 transition-colors"
                 onClick={fetchReportData}
