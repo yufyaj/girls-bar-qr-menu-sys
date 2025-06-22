@@ -1,3 +1,6 @@
 node_modules
 .next
 .env.local
+supabase/.temp/*
+supabase/.temp/gotrue-version
+supabase/.temp/postgres-version
