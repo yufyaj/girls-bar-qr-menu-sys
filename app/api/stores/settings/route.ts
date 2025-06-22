@@ -63,6 +63,25 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
+    // 営業時間のバリデーション
+    if (data.open_time !== undefined || data.close_time !== undefined) {
+      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+      
+      if (data.open_time !== undefined && !timeRegex.test(data.open_time)) {
+        return NextResponse.json(
+          { error: '開店時間の形式が正しくありません。HH:MM形式で入力してください' },
+          { status: 400 }
+        );
+      }
+      
+      if (data.close_time !== undefined && !timeRegex.test(data.close_time)) {
+        return NextResponse.json(
+          { error: '閉店時間の形式が正しくありません。HH:MM形式で入力してください' },
+          { status: 400 }
+        );
+      }
+    }
+
     // スマレジ連携キーのバリデーション
     if (data.enable_smaregi_integration) {
       // スマレジ連携が有効な場合、クライアントID、シークレット、契約IDが必要
@@ -82,6 +101,15 @@ export async function PATCH(request: NextRequest) {
     // 消費税率が指定されている場合は更新
     if (data.tax_rate !== undefined) {
       updateData.tax_rate = parseFloat(data.tax_rate);
+    }
+
+    // 営業時間が指定されている場合は更新
+    if (data.open_time !== undefined) {
+      updateData.open_time = data.open_time;
+    }
+    
+    if (data.close_time !== undefined) {
+      updateData.close_time = data.close_time;
     }
 
     // スマレジ連携が有効な場合、キー情報も更新

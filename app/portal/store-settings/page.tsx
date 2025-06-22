@@ -37,6 +37,8 @@ export default async function StoreSettingsPage() {
               smaregiClientSecret={store.smaregi_client_secret || ''}
               smaregiContractId={store.smaregi_contract_id || ''}
               taxRate={store.tax_rate || 10.0}
+              openTime={store.open_time || '18:00'}
+              closeTime={store.close_time || '02:00'}
             />
           </div>
         </div>

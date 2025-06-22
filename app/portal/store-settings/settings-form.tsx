@@ -10,6 +10,8 @@ interface SettingsFormProps {
   smaregiClientSecret?: string;
   smaregiContractId?: string;
   taxRate?: number;
+  openTime?: string;
+  closeTime?: string;
 }
 
 export default function SettingsForm({
@@ -19,6 +21,8 @@ export default function SettingsForm({
   smaregiClientSecret = '',
   smaregiContractId = '',
   taxRate = 10.0,
+  openTime = '18:00',
+  closeTime = '02:00',
 }: SettingsFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -31,6 +35,8 @@ export default function SettingsForm({
     smaregiClientSecret,
     smaregiContractId,
     taxRate,
+    openTime,
+    closeTime,
   });
 
   const handleToggle = () => {
@@ -93,6 +99,8 @@ export default function SettingsForm({
           smaregi_client_secret: settings.smaregiClientSecret,
           smaregi_contract_id: settings.smaregiContractId,
           tax_rate: settings.taxRate,
+          open_time: settings.openTime,
+          close_time: settings.closeTime,
         }),
       });
 
@@ -147,29 +155,71 @@ export default function SettingsForm({
 
       <div>
         <h2 className="text-lg font-medium text-gray-900">基本設定</h2>
-        <div className="mt-4">
-          <label htmlFor="taxRate" className="block text-sm font-medium text-gray-700">
-            消費税率 (%)
-          </label>
-          <div className="mt-1 relative rounded-md shadow-sm w-32">
-            <input
-              type="number"
-              name="taxRate"
-              id="taxRate"
-              min="0"
-              max="100"
-              step="0.1"
-              value={settings.taxRate}
-              onChange={handleInputChange}
-              className="focus:ring-blue-500 focus:border-blue-500 block w-full pr-8 sm:text-sm border-gray-300 rounded-md"
-            />
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-              <span className="text-gray-500 sm:text-sm">%</span>
+        <div className="mt-4 space-y-4">
+          <div>
+            <label htmlFor="taxRate" className="block text-sm font-medium text-gray-700">
+              消費税率 (%)
+            </label>
+            <div className="mt-1 relative rounded-md shadow-sm w-32">
+              <input
+                type="number"
+                name="taxRate"
+                id="taxRate"
+                min="0"
+                max="100"
+                step="0.1"
+                value={settings.taxRate}
+                onChange={handleInputChange}
+                className="focus:ring-blue-500 focus:border-blue-500 block w-full pr-8 sm:text-sm border-gray-300 rounded-md"
+              />
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                <span className="text-gray-500 sm:text-sm">%</span>
+              </div>
+            </div>
+            <p className="mt-1 text-sm text-gray-500">
+              会計時に適用される消費税率を設定します。
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="pt-6 border-t border-gray-200 mt-6">
+        <h2 className="text-lg font-medium text-gray-900">営業時間設定</h2>
+        <p className="mt-1 text-sm text-gray-500">
+          店舗の営業時間を設定します。深夜営業の場合は翌日の時間を設定してください（例：18:00〜02:00）。
+        </p>
+        <div className="mt-4 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+          <div className="sm:col-span-3">
+            <label htmlFor="openTime" className="block text-sm font-medium text-gray-700">
+              開店時間
+            </label>
+            <div className="mt-1">
+              <input
+                type="time"
+                name="openTime"
+                id="openTime"
+                value={settings.openTime}
+                onChange={handleInputChange}
+                className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+              />
             </div>
           </div>
-          <p className="mt-1 text-sm text-gray-500">
-            会計時に適用される消費税率を設定します。
-          </p>
+
+          <div className="sm:col-span-3">
+            <label htmlFor="closeTime" className="block text-sm font-medium text-gray-700">
+              閉店時間
+            </label>
+            <div className="mt-1">
+              <input
+                type="time"
+                name="closeTime"
+                id="closeTime"
+                value={settings.closeTime}
+                onChange={handleInputChange}
+                className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
