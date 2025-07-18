@@ -6,10 +6,6 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const date = searchParams.get('date');
-    // 時間間隔（分単位）: 30または60
-    const intervalMinutes = parseInt(searchParams.get('interval') || '60', 10);
-    const startHour = parseInt(searchParams.get('start_hour') || '0', 10);
-    const endHour = parseInt(searchParams.get('end_hour') || '24', 10);
 
     // 認証用クライアント（Cookieベース）
     const authClient = await createServerComponentClient();
@@ -64,13 +60,31 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 時間間隔のチェック
-    if (intervalMinutes !== 30 && intervalMinutes !== 60) {
+    // 店舗の営業時間を取得
+    const { data: storeData, error: storeError } = await supabase
+      .from('stores')
+      .select('open_time, close_time')
+      .eq('store_id', storeId)
+      .single();
+
+    if (storeError || !storeData) {
       return NextResponse.json(
-        { error: '時間間隔は30分または60分を指定してください' },
-        { status: 400 }
+        { error: '店舗情報の取得に失敗しました' },
+        { status: 500 }
       );
     }
+
+    // 営業時間を解析（HH:MM形式）
+    const openTime = storeData.open_time || '18:00'; // 例: "18:00"
+    const closeTime = storeData.close_time || '12:00'; // 例: "12:00"
+    
+    const openHour = parseInt(openTime.split(':')[0], 10);
+    const closeHour = parseInt(closeTime.split(':')[0], 10);
+    
+    // 営業時間の解釈：18時から翌日12時まで（18:00-12:00）
+    const isOvernightOperation = closeHour < openHour;
+    
+    console.log('営業時間解析結果:', { openTime, closeTime, openHour, closeHour, isOvernightOperation });
 
     // 基本的なクエリ
     let query = supabase
@@ -85,11 +99,29 @@ export async function GET(request: NextRequest) {
       `)
       .eq('store_id', storeId);
 
-    // 日付フィルタの適用
+    // 日付フィルタの適用（ガールズバーの営業時間に合わせて）
     if (date) {
-      // 指定日の00:00:00から23:59:59まで
-      query = query.gte('checkout_at', `${date}T00:00:00+09:00`)
-        .lte('checkout_at', `${date}T23:59:59+09:00`);
+      if (isOvernightOperation) {
+        // 翌日営業の場合：指定日の開店時間から翌日の閉店時間まで
+        // 例：6/27を指定した場合、6/27 18:00から6/28 12:00まで
+        const startDateTime = `${date}T${openTime}+09:00`;
+        
+        // 翌日の日付を計算（より安全な方法）
+        const [year, month, day] = date.split('-').map(Number);
+        const nextDate = new Date(year, month - 1, day + 1); // monthは0ベースなので-1
+        const nextYear = nextDate.getFullYear();
+        const nextMonth = String(nextDate.getMonth() + 1).padStart(2, '0');
+        const nextDay = String(nextDate.getDate()).padStart(2, '0');
+        const nextDateStr = `${nextYear}-${nextMonth}-${nextDay}`;
+        const endDateTime = `${nextDateStr}T${closeTime}+09:00`;
+        
+        query = query.gte('checkout_at', startDateTime)
+          .lte('checkout_at', endDateTime);
+      } else {
+        // 同日営業の場合：指定日の開店時間から閉店時間まで
+        query = query.gte('checkout_at', `${date}T${openTime}+09:00`)
+          .lte('checkout_at', `${date}T${closeTime}+09:00`);
+      }
     }
 
     // データ取得
@@ -113,29 +145,39 @@ export async function GET(request: NextRequest) {
 
     const hourlyData: Record<string, HourlySales> = {};
 
-    // 時間帯スロットを初期化
-    // 例: 30分間隔なら "00:00-00:30", "00:30-01:00", ...
-    // 例: 60分間隔なら "00:00-01:00", "01:00-02:00", ...
-    for (let hour = startHour; hour < endHour; hour++) {
-      if (intervalMinutes === 30) {
-        const slot1 = `${hour.toString().padStart(2, '0')}:00-${hour.toString().padStart(2, '0')}:30`;
-        const slot2 = `${hour.toString().padStart(2, '0')}:30-${(hour + 1).toString().padStart(2, '0')}:00`;
+    // 営業時間に基づいて時間帯スロットを初期化（1時間ごと）
+    if (isOvernightOperation) {
+      // 翌日営業の場合（例：18:00-12:00）
+      // 開店時間から24時まで
+      for (let hour = openHour; hour < 24; hour++) {
+        const nextHour = hour + 1;
+        const slot = `${hour.toString().padStart(2, '0')}:00-${nextHour.toString().padStart(2, '0')}:00`;
         
-        hourlyData[slot1] = {
-          time_slot: slot1,
+        hourlyData[slot] = {
+          time_slot: slot,
           sales_amount: 0,
           transaction_count: 0,
           nomination_count: 0
         };
+      }
+      
+      // 0時から閉店時間まで
+      for (let hour = 0; hour < closeHour; hour++) {
+        const nextHour = hour + 1;
+        const slot = `${hour.toString().padStart(2, '0')}:00-${nextHour.toString().padStart(2, '0')}:00`;
         
-        hourlyData[slot2] = {
-          time_slot: slot2,
+        hourlyData[slot] = {
+          time_slot: slot,
           sales_amount: 0,
           transaction_count: 0,
           nomination_count: 0
         };
-      } else {
-        const slot = `${hour.toString().padStart(2, '0')}:00-${(hour + 1).toString().padStart(2, '0')}:00`;
+      }
+    } else {
+      // 同日営業の場合（例：10:00-22:00）
+      for (let hour = openHour; hour < closeHour; hour++) {
+        const nextHour = hour + 1;
+        const slot = `${hour.toString().padStart(2, '0')}:00-${nextHour.toString().padStart(2, '0')}:00`;
         
         hourlyData[slot] = {
           time_slot: slot,
@@ -155,20 +197,10 @@ export async function GET(request: NextRequest) {
       const jpDate = new Date(jpTimestamp);
       
       const hour = jpDate.getUTCHours(); // UTCの時間を取得（ローカルタイムゾーンの影響を受けない）
-      const minute = jpDate.getUTCMinutes();
       
-      // スロットキーを生成
-      let timeSlot = '';
-      
-      if (intervalMinutes === 30) {
-        if (minute < 30) {
-          timeSlot = `${hour.toString().padStart(2, '0')}:00-${hour.toString().padStart(2, '0')}:30`;
-        } else {
-          timeSlot = `${hour.toString().padStart(2, '0')}:30-${(hour + 1).toString().padStart(2, '0')}:00`;
-        }
-      } else {
-        timeSlot = `${hour.toString().padStart(2, '0')}:00-${(hour + 1).toString().padStart(2, '0')}:00`;
-      }
+      // 1時間ごとのスロットキーを生成
+      const nextHour = hour + 1;
+      const timeSlot = `${hour.toString().padStart(2, '0')}:00-${nextHour.toString().padStart(2, '0')}:00`;
       
       // 時間帯が定義されている場合のみ集計
       if (hourlyData[timeSlot]) {
@@ -181,10 +213,38 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // 時間帯順にソートして配列に変換
-    const result = Object.values(hourlyData).sort((a, b) => 
-      a.time_slot.localeCompare(b.time_slot)
-    );
+    // 営業時間順にソートして配列に変換
+    let result: HourlySales[] = [];
+    
+    if (isOvernightOperation) {
+      // 翌日営業の場合：開店時間から24時まで、その後0時から閉店時間まで
+      // 開店時間から24時まで
+      for (let hour = openHour; hour < 24; hour++) {
+        const nextHour = hour + 1;
+        const slot = `${hour.toString().padStart(2, '0')}:00-${nextHour.toString().padStart(2, '0')}:00`;
+        if (hourlyData[slot]) {
+          result.push(hourlyData[slot]);
+        }
+      }
+      
+      // 0時から閉店時間まで
+      for (let hour = 0; hour < closeHour; hour++) {
+        const nextHour = hour + 1;
+        const slot = `${hour.toString().padStart(2, '0')}:00-${nextHour.toString().padStart(2, '0')}:00`;
+        if (hourlyData[slot]) {
+          result.push(hourlyData[slot]);
+        }
+      }
+    } else {
+      // 同日営業の場合：開店時間から閉店時間まで
+      for (let hour = openHour; hour < closeHour; hour++) {
+        const nextHour = hour + 1;
+        const slot = `${hour.toString().padStart(2, '0')}:00-${nextHour.toString().padStart(2, '0')}:00`;
+        if (hourlyData[slot]) {
+          result.push(hourlyData[slot]);
+        }
+      }
+    }
 
     // CSVヘッダー
     const csvHeaders = [

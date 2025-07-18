@@ -15,9 +15,6 @@ export default function HourlySalesReport() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [date, setDate] = useState<string>('');
-  const [intervalMinutes, setIntervalMinutes] = useState<string>('60');
-  const [startHour, setStartHour] = useState<string>('0');
-  const [endHour, setEndHour] = useState<string>('24');
   const [reportData, setReportData] = useState<HourlySales[]>([]);
   const [summary, setSummary] = useState<any>(null);
 
@@ -51,9 +48,6 @@ export default function HourlySalesReport() {
       // URLクエリパラメータを構築
       const params = new URLSearchParams();
       params.append('date', date);
-      params.append('interval', intervalMinutes);
-      params.append('start_hour', startHour);
-      params.append('end_hour', endHour);
 
       // APIからデータを取得
       const response = await fetch(`/api/reports/hourly-sales?${params.toString()}`);
@@ -85,9 +79,6 @@ export default function HourlySalesReport() {
       // URLクエリパラメータを構築
       const params = new URLSearchParams();
       params.append('date', date);
-      params.append('interval', intervalMinutes);
-      params.append('start_hour', startHour);
-      params.append('end_hour', endHour);
 
       // CSVエクスポートAPIを呼び出し
       const response = await fetch(`/api/reports/hourly-sales/export?${params.toString()}`);
@@ -129,7 +120,7 @@ export default function HourlySalesReport() {
     if (date) {
       fetchReportData();
     }
-  }, [date, intervalMinutes, startHour, endHour]);
+  }, [date]);
 
   // 日本円表示用のフォーマッタ
   const formatCurrency = (amount: number) => {
@@ -159,45 +150,6 @@ export default function HourlySalesReport() {
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                 />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">時間間隔</label>
-                <select
-                  className="w-full p-2 border border-gray-300 rounded"
-                  value={intervalMinutes}
-                  onChange={(e) => setIntervalMinutes(e.target.value)}
-                >
-                  <option value="30">30分</option>
-                  <option value="60">1時間</option>
-                </select>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">開始時間</label>
-                  <select
-                    className="w-full p-2 border border-gray-300 rounded"
-                    value={startHour}
-                    onChange={(e) => setStartHour(e.target.value)}
-                  >
-                    {[...Array(24)].map((_, i) => (
-                      <option key={i} value={i}>{i}時</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">終了時間</label>
-                  <select
-                    className="w-full p-2 border border-gray-300 rounded"
-                    value={endHour}
-                    onChange={(e) => setEndHour(e.target.value)}
-                  >
-                    {[...Array(25)].map((_, i) => (
-                      <option key={i} value={i}>{i}時</option>
-                    ))}
-                  </select>
-                </div>
               </div>
             </div>
             

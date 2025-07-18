@@ -62,21 +62,60 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // 店舗の営業時間を取得
+    let openTime = '18:00';
+    let closeTime = '12:00';
+    
+    try {
+      const { data: storeData, error: storeError } = await supabase
+        .from('stores')
+        .select('open_time, close_time')
+        .eq('store_id', storeId)
+        .single();
+
+      if (!storeError && storeData) {
+        openTime = storeData.open_time || '18:00';
+        closeTime = storeData.close_time || '12:00';
+      }
+    } catch (err) {
+      // エラーの場合はデフォルト値を使用
+    }
+
+    const openHour = parseInt(openTime.split(':')[0], 10);
+    const closeHour = parseInt(closeTime.split(':')[0], 10);
+    const isOvernightOperation = closeHour < openHour;
+
     // 会計履歴を取得するクエリの基本部分
     let historyQuery = supabase
       .from('checkout_history')
       .select('history_id, checkout_at')
       .eq('store_id', storeId);
 
-    // 日付範囲フィルタを適用
+    // 日付範囲フィルタを適用（営業時間を考慮）
     if (startDate) {
-      historyQuery = historyQuery.gte('checkout_at', `${startDate}T00:00:00`);
-      console.log(`日付フィルタ（開始）: ${startDate}T00:00:00`);
+      if (isOvernightOperation) {
+        // 翌日営業の場合：開始日の開店時間から
+        historyQuery = historyQuery.gte('checkout_at', `${startDate}T${openTime}+09:00`);
+      } else {
+        // 同日営業の場合：開始日の開店時間から
+        historyQuery = historyQuery.gte('checkout_at', `${startDate}T${openTime}+09:00`);
+      }
     }
 
     if (endDate) {
-      historyQuery = historyQuery.lte('checkout_at', `${endDate}T23:59:59`);
-      console.log(`日付フィルタ（終了）: ${endDate}T23:59:59`);
+      if (isOvernightOperation) {
+        // 翌日営業の場合：終了日の翌日の閉店時間まで
+        const [year, month, day] = endDate.split('-').map(Number);
+        const nextDate = new Date(year, month - 1, day + 1);
+        const nextYear = nextDate.getFullYear();
+        const nextMonth = String(nextDate.getMonth() + 1).padStart(2, '0');
+        const nextDay = String(nextDate.getDate()).padStart(2, '0');
+        const nextDateStr = `${nextYear}-${nextMonth}-${nextDay}`;
+        historyQuery = historyQuery.lte('checkout_at', `${nextDateStr}T${closeTime}+09:00`);
+      } else {
+        // 同日営業の場合：終了日の閉店時間まで
+        historyQuery = historyQuery.lte('checkout_at', `${endDate}T${closeTime}+09:00`);
+      }
     }
 
     console.log('店舗ID:', storeId);
@@ -258,4 +297,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}
