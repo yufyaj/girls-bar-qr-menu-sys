@@ -5,17 +5,14 @@ import { getUserRoleInStore } from '@/lib/auth';
 import { getSmaregiAccessToken, fetchSmaregiProducts, fetchSmaregiCategories, fetchSmaregiAllProductImages } from '@/lib/smaregi';
 
 // スマレジAPIから商品情報を取得して整形する関数
-async function getFormattedSmaregiProducts(storeId: string, clientId: string, clientSecret: string, contractId: string) {
+async function getFormattedSmaregiProducts(storeId: string) {
   try {
-    // スマレジAPIのアクセストークンを取得
-    const accessToken = await getSmaregiAccessToken(clientId, clientSecret, contractId);
-
-    // スマレジAPIから商品情報と部門情報を取得
-    const products = await fetchSmaregiProducts(accessToken, contractId);
-    const categories = await fetchSmaregiCategories(accessToken, contractId);
+    // OAuth認証を使用してスマレジAPIから商品情報と部門情報を取得
+    const products = await fetchSmaregiProducts(storeId);
+    const categories = await fetchSmaregiCategories(storeId);
 
     // スマレジAPIから全商品画像情報を一括取得
-    const allProductImages = await fetchSmaregiAllProductImages(accessToken, contractId);
+    const allProductImages = await fetchSmaregiAllProductImages(storeId);
 
     // 商品IDと画像URLのマッピングを作成
     const productImageMap = new Map();
@@ -153,13 +150,8 @@ export async function POST(request: NextRequest) {
     // 契約IDを店舗設定から取得
     const contractId = store.smaregi_contract_id;
 
-    // スマレジAPIからメニュー情報を取得
-    const smaregiData = await getFormattedSmaregiProducts(
-      storeId,
-      store.smaregi_client_id,
-      store.smaregi_client_secret,
-      contractId
-    );
+    // スマレジAPIからメニュー情報を取得（OAuth認証を使用）
+    const smaregiData = await getFormattedSmaregiProducts(storeId);
 
     const { products: smaregiProducts, categories: smaregiCategories } = smaregiData;
 
