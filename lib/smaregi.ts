@@ -16,7 +16,7 @@ export async function getSmaregiAccessToken(
   clientSecretOrContractId?: string,
   contractIdOrScope?: string,
   scope: string = 'pos.products:read pos.transactions:write',
-  isSandbox: boolean = true
+  isSandbox: boolean = process.env.NODE_ENV === 'development'
 ): Promise<string> {
   // 新しい呼び出し方法（OAuth認証）: getSmaregiAccessToken(storeId)
   if (!clientSecretOrContractId) {
@@ -71,7 +71,7 @@ export async function getSmaregiAccessToken(
 export async function fetchSmaregiProducts(
   storeIdOrAccessToken: string,
   contractIdOrIsSandbox?: string | boolean,
-  isSandbox: boolean = false
+  isSandbox: boolean = process.env.NODE_ENV === 'development'
 ): Promise<any[]> {
   // OAuth認証を使用する場合（新しい方法）
   if (typeof contractIdOrIsSandbox === 'boolean' || contractIdOrIsSandbox === undefined) {
@@ -174,7 +174,7 @@ export async function fetchSmaregiProductImages(
   accessToken: string,
   contractId: string,
   productId: string,
-  isSandbox: boolean = true
+  isSandbox: boolean = process.env.NODE_ENV === 'development'
 ): Promise<any[]> {
   const baseUrl = isSandbox ? 'https://api.smaregi.dev' : 'https://api.smaregi.jp';
   const url = `${baseUrl}/${contractId}/pos/products/${productId}/images`;
@@ -215,7 +215,7 @@ export async function fetchSmaregiProductImages(
 export async function fetchSmaregiAllProductImages(
   storeIdOrAccessToken: string,
   contractIdOrIsSandbox?: string | boolean,
-  isSandbox: boolean = true
+  isSandbox: boolean = process.env.NODE_ENV === 'development'
 ): Promise<any[]> {
   // OAuth認証を使用する場合（新しい方法）
   if (typeof contractIdOrIsSandbox === 'boolean' || contractIdOrIsSandbox === undefined) {
@@ -333,7 +333,7 @@ export async function fetchSmaregiAllProductImages(
 export async function fetchSmaregiCategories(
   storeIdOrAccessToken: string,
   contractIdOrIsSandbox?: string | boolean,
-  isSandbox: boolean = true
+  isSandbox: boolean = process.env.NODE_ENV === 'development'
 ): Promise<any[]> {
   // OAuth認証を使用する場合（新しい方法）
   if (typeof contractIdOrIsSandbox === 'boolean' || contractIdOrIsSandbox === undefined) {
@@ -424,7 +424,7 @@ export async function registerSmaregiTransaction(
   storeIdOrAccessToken: string,
   transactionDataOrContractId: any,
   transactionDataOrIsSandbox?: any | boolean,
-  isSandbox: boolean = true
+  isSandbox: boolean = process.env.NODE_ENV === 'development'
 ): Promise<any> {
   // OAuth認証を使用する場合（新しい方法）
   if (typeof transactionDataOrIsSandbox === 'boolean' || transactionDataOrIsSandbox === undefined) {

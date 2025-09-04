@@ -36,7 +36,7 @@ export function generateSmaregiAuthUrl(
   state: string,
   codeChallenge: string,
   scope: string = 'openid pos.products:read pos.transactions:write',
-  isSandbox: boolean = false
+  isSandbox: boolean = process.env.NODE_ENV === 'development'
 ): string {
   const baseUrl = isSandbox ? 'https://id.smaregi.dev' : 'https://id.smaregi.jp';
   const authUrl = new URL(`${baseUrl}/authorize`);
@@ -61,7 +61,7 @@ export async function exchangeCodeForToken(
   clientId: string,
   clientSecret: string,
   redirectUri: string,
-  isSandbox: boolean = false
+  isSandbox: boolean = process.env.NODE_ENV === 'development'
 ): Promise<{
   access_token: string;
   refresh_token?: string;
@@ -104,7 +104,7 @@ export async function refreshSmaregiToken(
   refreshToken: string,
   clientId: string,
   clientSecret: string,
-  isSandbox: boolean = false
+  isSandbox: boolean = process.env.NODE_ENV === 'development'
 ): Promise<{
   access_token: string;
   refresh_token?: string;
@@ -308,7 +308,7 @@ export async function callSmaregiAPI(
   storeId: string,
   endpoint: string,
   options: RequestInit = {},
-  isSandbox: boolean = false
+  isSandbox: boolean = process.env.NODE_ENV === 'development'
 ): Promise<any> {
   // 有効なアクセストークンを取得
   const accessToken = await getValidSmaregiAccessToken(storeId);
